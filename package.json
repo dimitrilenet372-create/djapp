@@ -1,0 +1,14 @@
+{
+  "name": "le-bac",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Playlists SoundCloud : doublons, versions liées, rangement par style. Page statique pour GitHub Pages.",
+  "scripts": {
+    "test": "node --test",
+    "start": "npx --yes serve ."
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0"
+  }
+}
