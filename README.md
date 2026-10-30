@@ -17,7 +17,7 @@ Pour l'essayer en local : `npx serve .` puis ouvre l'adresse affichée. Les modu
 
 L'écran ressemble à une app de musique : un bouton **Ajouter une playlist**, et dessous tes playlists en pochettes.
 
-1. **Ajouter.** Le bouton ouvre deux étapes : glisse le favori **Ajouter à Le bac** dans ta barre de favoris (une seule fois), puis ouvre ta playlist sur soundcloud.com et clique dessus. Elle arrive dans l'app avec ses pochettes. Sinon, tu peux coller des titres ou importer un fichier.
+1. **Ajouter.** Le bouton ouvre deux étapes : glisse le favori **Ajouter à Le bac** dans ta barre de favoris (une seule fois), puis ouvre ta playlist sur soundcloud.com et clique dessus. Elle arrive dans l'app avec ses pochettes. Le favori lit aussi un titre seul et ta page **Likes** (profil, onglet Likes) : tes titres aimés deviennent une playlist « Likes de … », jusqu'à plusieurs milliers de titres. Sinon, tu peux coller des titres ou importer un fichier.
 2. **Entrer dans une playlist.** Les doublons sont barrés et marqués. **Retirer N doublons** les enlève d'un clic (le premier exemplaire est gardé), avec un bouton Annuler. Le × retire un titre, le nom se modifie au clic. Les remix, edits et bootlegs d'un même titre sont reliés par un badge : ce ne sont pas des doublons.
 3. **Comparer ou fusionner.** Sur l'accueil, le rond en haut à droite d'une pochette sélectionne une playlist. Avec deux choisies : **Comparer** (en commun, seulement dans l'une, seulement dans l'autre) ou **Fusionner** (une nouvelle playlist sans doublons). Les originales ne changent pas.
 4. **Ranger par style** découpe une playlist en playlists de même style (house, techno, drum & bass…), pratique pour préparer des sets.

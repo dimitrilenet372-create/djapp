@@ -279,7 +279,7 @@ function addSheet(message = '') {
       <li><b>Une seule fois :</b> glisse ce bouton dans ta barre de favoris (Ctrl+Maj+B pour l'afficher).<br>
         ${bmBlock('bm-link', '', 'Ajouter à Le bac', bookmarkletHref(appUrl()))}<br>
         <button type="button" class="link" data-act="copy-bm">Il ne se glisse pas ? Copier le code</button></li>
-      <li>Ouvre ta playlist sur <b>soundcloud.com</b> et clique sur ce favori. Elle arrive ici toute seule.</li>
+      <li>Ouvre sur <b>soundcloud.com</b> une playlist, un titre ou ta page <b>Likes</b> (ton profil, onglet Likes), puis clique sur ce favori. Les titres arrivent ici tout seuls.</li>
     </ol>
     ${message ? `<p class="warn">${esc(message)}</p>` : ''}
     <details${message ? ' open' : ''}><summary>Autre façon : coller des titres ou un fichier</summary>

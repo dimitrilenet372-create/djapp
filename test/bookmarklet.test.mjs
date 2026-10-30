@@ -109,7 +109,7 @@ test('messages clairs : mauvais site, pas d\'identifiant, erreur SoundCloud, pag
 
   r = fakeWin({ hydration: [{ hydratable: 'apiClient', data: { id: 'C' } }], responses: () => ({ kind: 'user' }) });
   await extractor(r.win, APP);
-  assert.match(r.notes.at(-1), /ni une playlist ni un titre/);
+  assert.match(r.notes.at(-1), /ni une playlist, ni un titre, ni une page Likes/);
 
   r = fakeWin({ hydration: [{ hydratable: 'apiClient', data: { id: 'C' } }], responses: () => ({ kind: 'playlist', title: 'Vide', tracks: [] }) });
   await extractor(r.win, APP);
@@ -131,7 +131,7 @@ test('le code du favori est du JavaScript valide, sur une seule adresse javascri
   assert.ok(href.startsWith('javascript:'));
   assert.ok(!/\s/.test(href), 'aucune espace brute');
   assert.equal(decodeURIComponent(href.slice('javascript:'.length)), code);
-  assert.ok(href.length < 8000, `longueur ${href.length}`);
+  assert.ok(href.length < 20000, `longueur ${href.length}`);
 });
 
 // --------------------------------------------------------------------------- //
@@ -323,4 +323,58 @@ test('pochettes : réduites à leur identifiant, celle de la playlist et celles 
   const parsed = core.parseEntries(imp.tracks, 'X');
   assert.equal(parsed[0].art, 'artworks-T1-aaa');
   assert.equal(parsed[0].scid, 1);
+});
+
+test('page Likes : toutes les pages de likes sont suivies, nom et titres repris', async () => {
+  const mk = (from, n) => Array.from({ length: n }, (_, i) => ({ kind: 'like', track: full(from + i) }));
+  const { win, calls } = fakeWin({
+    pathname: '/dj-test/likes',
+    hydration: [{ hydratable: 'apiClient', data: { id: 'CIDL' } }],
+    responses: (path, q) => {
+      if (path === 'resolve') {
+        assert.equal(q.get('url'), 'https://soundcloud.com/dj-test');
+        return { kind: 'user', id: 77, username: 'DJ Test' };
+      }
+      if (path === 'users/77/track_likes') {
+        const off = Number(q.get('offset') || 0);
+        if (off === 0) return { collection: mk(1, 100), next_href: 'https://api-v2.soundcloud.com/users/77/track_likes?offset=100&limit=100' };
+        if (off === 100) return { collection: [...mk(101, 40), { kind: 'like', playlist: { id: 5 } }], next_href: null };
+      }
+      return null;
+    },
+  });
+  await extractor(win, APP);
+  const likeCalls = calls.filter((c) => c.includes('/track_likes'));
+  assert.equal(likeCalls.length, 2);
+  assert.ok(likeCalls.every((c) => c.includes('client_id=CIDL')));
+  const imp = core.decodeImport('#' + win.opened.url.split('#')[1]);
+  assert.equal(imp.name, 'Likes de DJ Test');
+  assert.equal(imp.tracks.length, 140, 'les likes de playlists sont ignorés');
+  assert.equal(imp.tracks[139].id, 140);
+  assert.equal(imp.art, '');
+});
+
+test('page Likes de la personne connectée : /me avec son jeton', async () => {
+  let auth = null;
+  const { win } = fakeWin({
+    pathname: '/you/likes',
+    hydration: [{ hydratable: 'apiClient', data: { id: 'C' } }],
+    responses: (path) => (path === 'users/9/track_likes' ? { collection: [{ track: full(1) }], next_href: null } : null),
+  });
+  win.document.cookie = 'x=1; oauth_token=2-5-abc';
+  const base = win.fetch;
+  win.fetch = async (url, init) => {
+    if (new URL(url).pathname === '/me') {
+      auth = init && init.headers && init.headers.Authorization;
+      return { ok: true, status: 200, json: async () => ({ kind: 'user', id: 9, username: 'Moi' }) };
+    }
+    return base(url, init);
+  };
+  await extractor(win, APP);
+  assert.equal(auth, 'OAuth 2-5-abc');
+  assert.equal(core.decodeImport('#' + win.opened.url.split('#')[1]).name, 'Likes de Moi');
+
+  const r = fakeWin({ pathname: '/you/likes', hydration: [{ hydratable: 'apiClient', data: { id: 'C' } }], responses: () => null });
+  await extractor(r.win, APP);
+  assert.match(r.notes.at(-1), /pas connecté/);
 });

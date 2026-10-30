@@ -55,18 +55,53 @@ export async function extractor(win, appUrl) {
       return r.json();
     };
 
-    const data = await get('resolve', { url: win.location.origin + win.location.pathname });
     let tracks;
     let name;
-    const kind = data.kind;
-    if (data.kind === 'playlist' || data.kind === 'system-playlist') {
-      tracks = data.tracks || [];
-      name = data.title;
-    } else if (data.kind === 'track') {
-      tracks = [data];
-      name = data.title;
+    let kind;
+    let data = {};
+    const likes = /^\/([^/]+)\/likes$/.exec(win.location.pathname.replace(/\/+$/, ''));
+    if (likes) {
+      // page « Likes » : titres aimés, par pages de 100 (SoundCloud donne l'adresse de la suivante)
+      kind = 'likes';
+      let user;
+      if (likes[1] === 'you') {
+        const tk = /(?:^|;\s*)oauth_token=([^;]+)/.exec(doc.cookie || '');
+        if (!tk) return fail("tu ne sembles pas connecté à SoundCloud. Connecte-toi, recharge la page, puis réessaie.");
+        const r = await win.fetch('https://api-v2.soundcloud.com/me?client_id=' + clientId, {
+          headers: { Authorization: 'OAuth ' + decodeURIComponent(tk[1]) },
+        });
+        if (!r.ok) throw new Error('SoundCloud a répondu ' + r.status);
+        user = await r.json();
+      } else {
+        user = await get('resolve', { url: win.location.origin + '/' + likes[1] });
+      }
+      if (!user || user.kind !== 'user' || !user.id) return fail('profil introuvable pour cette page Likes.');
+      tracks = [];
+      let next = 'https://api-v2.soundcloud.com/users/' + user.id + '/track_likes?limit=100&client_id=' + clientId;
+      for (let page = 0; next && page < 100; page++) {
+        say('Le bac : lecture des likes… ' + tracks.length);
+        const r = await win.fetch(next);
+        if (!r.ok) throw new Error('SoundCloud a répondu ' + r.status);
+        const j = await r.json();
+        for (const it of j.collection || []) {
+          const t = it && (it.track || (it.kind === 'track' ? it : null));
+          if (t && t.id) tracks.push(t);
+        }
+        next = j.next_href ? j.next_href + (/[?&]client_id=/.test(j.next_href) ? '' : '&client_id=' + clientId) : '';
+      }
+      name = 'Likes de ' + (user.username || user.permalink || 'SoundCloud');
     } else {
-      return fail("cette page n'est ni une playlist ni un titre.");
+      data = await get('resolve', { url: win.location.origin + win.location.pathname });
+      kind = data.kind;
+      if (data.kind === 'playlist' || data.kind === 'system-playlist') {
+        tracks = data.tracks || [];
+        name = data.title;
+      } else if (data.kind === 'track') {
+        tracks = [data];
+        name = data.title;
+      } else {
+        return fail("cette page n'est ni une playlist, ni un titre, ni une page Likes.");
+      }
     }
 
     // la page ne détaille que les premiers titres : on récupère les autres par lots
@@ -91,18 +126,19 @@ export async function extractor(win, appUrl) {
       title: t.title,
       uploader: (t.publisher_metadata && t.publisher_metadata.artist) || (t.user && t.user.username) || '',
       genre: t.genre || '',
-      tags: parseTags(t.tag_list),
+      tags: full.length > 400 ? [] : parseTags(t.tag_list),
       duration: Math.round((t.full_duration || t.duration || 0) / 1000) || null,
       webpage_url: t.permalink_url || '',
     }));
     if (!out.length) return fail('aucun titre trouvé (playlist vide ou privée).');
 
-    const json = JSON.stringify({ v: 1, name: name || 'Playlist SoundCloud', art: kind === 'track' ? '' : art(data.artwork_url), tracks: out });
+    const json = JSON.stringify({ v: 1, name: name || 'Playlist SoundCloud', art: kind === 'track' || kind === 'likes' ? '' : art(data.artwork_url), tracks: out });
     const b64 = win
       .btoa(unescape(encodeURIComponent(json)))
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '');
+    if (b64.length > 1900000) return fail('trop de titres pour un seul envoi. Utilise une playlist plus petite.');
     const url = appUrl + '#import=' + b64;
     say('Le bac : ' + out.length + (out.length > 1 ? ' titres envoyés.' : ' titre envoyé.'), 3500);
     if (!win.open(url, 'lebac')) win.location.href = url;
