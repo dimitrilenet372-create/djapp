@@ -1,7 +1,7 @@
 import * as core from './core.js';
 import { makeZip } from './zip.js';
 import { SAMPLE_1, SAMPLE_2 } from './sample.js';
-import { bookmarkletCode, bookmarkletHref } from './bookmarklet.js';
+import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
 const PALETTE = 10;
 const $ = (s, r = document) => r.querySelector(s);
@@ -68,18 +68,18 @@ const state = {
 // Utilitaires : message, copie, téléchargement
 // --------------------------------------------------------------------------- //
 let toastTimer;
-function toast(msg) {
+function toast(msg, ms = 3400) {
   const el = $('#toast');
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 3400);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
 
-async function copyText(text, ok) {
+async function copyText(text, ok, ms) {
   try {
     await navigator.clipboard.writeText(text);
-    toast(ok);
+    toast(ok, ms);
   } catch {
     const ta = document.createElement('textarea');
     ta.value = text;
@@ -89,7 +89,7 @@ async function copyText(text, ok) {
     let done = false;
     try { done = document.execCommand('copy'); } catch { /* ignore */ }
     ta.remove();
-    toast(done ? ok : 'Copie impossible : sélectionne le texte à la main.');
+    toast(done ? ok : 'Copie impossible : sélectionne le texte à la main.', ms);
   }
 }
 
@@ -186,6 +186,28 @@ bmLink.addEventListener('click', (e) => {
   toast('Glisse ce bouton dans ta barre de favoris (Ctrl+Maj+B pour l\'afficher).');
 });
 $('#bm-copy').addEventListener('click', () => copyText(bookmarkletCode(appUrl()), 'Code copié : colle-le comme adresse d\'un nouveau favori.'));
+const bm2Link = $('#bm2-link');
+bm2Link.href = pusherHref();
+bm2Link.addEventListener('click', (e) => {
+  e.preventDefault();
+  toast('Glisse ce bouton dans ta barre de favoris, puis clique dessus depuis soundcloud.com.');
+});
+$('#bm2-copy').addEventListener('click', () => copyText(pusherCode(), 'Code copié : colle-le comme adresse d\'un nouveau favori.'));
+
+/** Copie les bacs (tous, ou un seul) pour le favori « Envoyer à SoundCloud ». */
+function pushToSoundcloud(playlists) {
+  const out = core.soundcloudPayload(playlists);
+  if (!out.tracks) {
+    toast('Aucun titre à envoyer : il faut un lien ou un identifiant SoundCloud.');
+    return;
+  }
+  const skipped = out.skipped ? ` ${out.skipped} sans lien seront ignorés.` : '';
+  copyText(
+    out.text,
+    `${out.tracks} titres en ${out.lists} playlist${out.lists > 1 ? 's' : ''} copiés.${skipped} Va sur soundcloud.com et clique sur « Envoyer à SoundCloud ».`,
+    7000,
+  );
+}
 
 function handleImport() {
   const imp = core.decodeImport(window.location.hash);
@@ -338,7 +360,7 @@ function crateHtml(pl, i) {
     <div class="crate-body">
       <div class="crate-tools">${
         has
-          ? '<button type="button" class="link" data-act="select-crate">Tout sélectionner</button><button type="button" class="link" data-act="copy-links">Copier les liens</button>'
+          ? '<button type="button" class="link" data-act="select-crate">Tout sélectionner</button><button type="button" class="link" data-act="copy-links">Copier les liens</button><button type="button" class="link" data-act="push-crate">Envoyer ce bac</button>'
           : '<button type="button" class="link" data-act="remove-crate">Retirer ce bac</button>'
       }</div>
       <ul class="rows" role="group" aria-label="Titres du bac ${esc(pl.name)}">${
@@ -454,6 +476,8 @@ board.addEventListener('click', (e) => {
       const links = core.playlistLinks(pl);
       if (links) copyText(links, 'Liens copiés.');
       else toast('Aucun lien dans ce bac.');
+    } else if (act.dataset.act === 'push-crate') {
+      pushToSoundcloud([pl]);
     } else if (act.dataset.act === 'remove-crate') {
       state.result.playlists = state.result.playlists.filter((p) => p !== pl);
       renderBoard();
@@ -661,6 +685,9 @@ tabsEl.addEventListener('keydown', (e) => {
   setView(next.dataset.view);
 });
 
+$('#push-all').addEventListener('click', () => {
+  if (state.result) pushToSoundcloud(state.result.playlists);
+});
 $('#dl-zip').addEventListener('click', () => {
   const r = state.result;
   if (r) download('le-bac.zip', makeZip(core.exportFiles(r.playlists, r.dups)), 'application/zip');

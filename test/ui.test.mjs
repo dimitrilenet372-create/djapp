@@ -142,6 +142,33 @@ test('copie des liens et exports', async () => {
   assert.deepEqual(globalThis.__downloads, ['le-bac.zip', 'le-bac.csv']);
 });
 
+test('envoi vers SoundCloud : copie de tous les bacs, ou d\'un seul', async () => {
+  globalThis.__copied = '';
+  click($('#push-all'));
+  await new Promise((r) => setTimeout(r, 10));
+  assert.ok(globalThis.__copied.startsWith('LEBAC1:'));
+  const all = JSON.parse(globalThis.__copied.slice(7)).lists;
+  assert.ok(all.length >= 1 && all.every((l) => l.items.length));
+  assert.match($('#toast').textContent, /titres en \d+ playlists? copiés.*Envoyer à SoundCloud/);
+
+  globalThis.__copied = '';
+  const crate = crates().find((c) => $('[data-act="push-crate"]', c));
+  click($('[data-act="push-crate"]', crate));
+  await new Promise((r) => setTimeout(r, 10));
+  const one = JSON.parse(globalThis.__copied.slice(7)).lists;
+  assert.equal(one.length, 1);
+  assert.equal(one[0].name, $('.crate-name', crate).value);
+});
+
+test('second favori : bouton et code disponibles', () => {
+  const href = $('#bm2-link').getAttribute('href');
+  assert.ok(href.startsWith('javascript:'));
+  assert.ok(decodeURIComponent(href).includes('oauth_token'));
+  click($('#bm2-link'));
+  assert.match($('#toast').textContent, /soundcloud\.com/);
+  click($('#bm2-copy'));
+});
+
 test('un titre piégé n\'injecte pas de HTML', () => {
   const ta = $$('.source textarea');
   type(ta[0], 'Hack - <img src=x onerror=alert(1)> | <b>x</b>');

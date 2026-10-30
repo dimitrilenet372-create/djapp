@@ -11,6 +11,7 @@ export function makeTrack(p) {
     title: (p.title || '').trim(),
     artist: (p.artist || '').trim(),
     url: p.url || '',
+    scid: p.scid || null,
     genre: p.genre || '',
     tags: p.tags || [],
     bpm: p.bpm ?? null,
@@ -379,6 +380,7 @@ function fromCsv(text, source) {
   const iBpm = col('bpm');
   const iUrl = col('lien', 'url', 'link');
   const iSrc = col('origine', 'source');
+  const iId = col('id soundcloud', 'id');
   if (iTitle < 0) return [];
   return rows
     .map((r) => {
@@ -386,10 +388,14 @@ function fromCsv(text, source) {
       return makeTrack({
         title: r[iTitle], artist: iArtist > -1 ? r[iArtist] : '', genre: iGenre > -1 ? r[iGenre] : '',
         bpm: Number.isFinite(bpm) ? bpm : null, url: iUrl > -1 ? r[iUrl] : '', source: (iSrc > -1 && r[iSrc]) || source,
+        scid: iId > -1 ? scidOf(r[iId]) : null,
       });
     })
     .filter((t) => t.title);
 }
+
+/** Identifiant numérique SoundCloud (nombre ou texte de chiffres), sinon null. */
+const scidOf = (v) => (typeof v === 'number' && Number.isSafeInteger(v) && v > 0 ? v : /^\d{1,15}$/.test(String(v ?? '')) ? Number(v) : null);
 
 function fromEntry(e, source) {
   if (!e || typeof e !== 'object') return null;
@@ -397,7 +403,7 @@ function fromEntry(e, source) {
   if (!title) return null;
   const genre = e.genre && !/^na$/i.test(e.genre) ? e.genre : '';
   return makeTrack({
-    title, artist, genre, url: e.webpage_url || e.url || '', tags: Array.isArray(e.tags) ? e.tags : [],
+    title, artist, genre, url: e.webpage_url || e.url || '', scid: scidOf(e.id), tags: Array.isArray(e.tags) ? e.tags : [],
     duration: typeof e.duration === 'number' ? e.duration : null, bpm: typeof e.bpm === 'number' ? e.bpm : null, source,
   });
 }
@@ -452,9 +458,9 @@ const csvCell = (v) => {
 const csvLine = (a) => a.map(csvCell).join(',');
 
 export function tracksToCsv(playlists) {
-  const lines = [csvLine(['Playlist', 'Artiste', 'Titre', 'Genre', 'BPM', 'Lien', 'Origine', 'Version'])];
+  const lines = [csvLine(['Playlist', 'Artiste', 'Titre', 'Genre', 'BPM', 'Lien', 'Origine', 'Version', 'ID SoundCloud'])];
   for (const pl of playlists) {
-    for (const t of pl.tracks) lines.push(csvLine([pl.name, t.artist, t.title, t.genre, t.bpm ?? '', t.url, t.source, t.versionLabel]));
+    for (const t of pl.tracks) lines.push(csvLine([pl.name, t.artist, t.title, t.genre, t.bpm ?? '', t.url, t.source, t.versionLabel, t.scid ?? '']));
   }
   return '﻿' + lines.join('\n') + '\n';
 }
@@ -469,6 +475,26 @@ export const playlistToTxt = (pl) =>
   pl.tracks.map((t) => (t.url ? `${labelOf(t)}  |  ${t.url}` : labelOf(t))).join('\n') + '\n';
 
 export const playlistLinks = (pl) => pl.tracks.map((t) => t.url).filter(Boolean).join('\n');
+
+/**
+ * Texte à copier pour le favori « Envoyer à SoundCloud » : `LEBAC1:` puis du JSON.
+ * Chaque titre est envoyé par son identifiant SoundCloud, sinon par son lien ; sans l'un ni l'autre il est écarté.
+ */
+export function soundcloudPayload(playlists) {
+  let skipped = 0;
+  const lists = [];
+  for (const pl of playlists) {
+    const items = [];
+    for (const t of pl.tracks) {
+      if (t.scid) items.push(t.scid);
+      else if (t.url && !isPlaylistUrl(t.url) && /^https?:\/\/(?:www\.)?soundcloud\.com\//i.test(t.url)) items.push(t.url);
+      else skipped++;
+    }
+    if (items.length) lists.push({ name: pl.name, items });
+  }
+  const tracks = lists.reduce((n, l) => n + l.items.length, 0);
+  return { text: 'LEBAC1:' + JSON.stringify({ v: 1, lists }), lists: lists.length, tracks, skipped };
+}
 
 const safeName = (n) => n.replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '_') || 'playlist';
 

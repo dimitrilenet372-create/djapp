@@ -88,6 +88,8 @@ body {
   font-weight: 800; text-decoration: none; line-height: 1.1;
 }
 .bm:hover { background: #fff; }
+.bm-out { background: var(--t2); }
+.bm-copy { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .deck-actions { display: flex; flex-wrap: wrap; gap: 10px 12px; margin-top: 22px; }
 .settings, .help { margin-top: 18px; font-size: 0.9375rem; }
 .settings summary, .help summary { cursor: pointer; font-weight: 700; width: fit-content; }

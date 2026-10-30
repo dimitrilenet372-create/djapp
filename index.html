@@ -25,8 +25,12 @@
 
         <div class="bm-row">
           <a id="bm-link" class="bm" href="#" draggable="true">Ajouter à Le bac</a>
-          <p>Glisse ce bouton dans ta barre de favoris. Ouvre ensuite une playlist sur soundcloud.com et clique dessus : elle arrive ici.</p>
-          <button type="button" id="bm-copy" class="link on-blue">Copier le code du favori</button>
+          <a id="bm2-link" class="bm bm-out" href="#" draggable="true">Envoyer à SoundCloud</a>
+          <p>Glisse ces deux boutons dans ta barre de favoris. Sur une playlist SoundCloud, « Ajouter » l'envoie ici. Une fois tes bacs prêts, « Envoyer » les recrée sur ton compte, en playlists privées.</p>
+          <span class="bm-copy">
+            <button type="button" id="bm-copy" class="link on-blue">Copier le code « Ajouter »</button>
+            <button type="button" id="bm2-copy" class="link on-blue">Copier le code « Envoyer »</button>
+          </span>
         </div>
 
         <div class="deck-actions">
@@ -56,6 +60,7 @@
           <summary>Comment récupérer mes playlists ?</summary>
           <div class="help-body">
             <p><b>Depuis SoundCloud, le plus simple.</b> Glisse le bouton « Ajouter à Le bac » dans ta barre de favoris (Ctrl+Maj+B pour l'afficher). Ouvre une playlist ou un titre sur soundcloud.com et clique sur le favori : les titres, genres et liens arrivent ici, et restent dans ton navigateur. Si tu ne peux pas glisser le bouton, crée un favori à la main et colle le code copié comme adresse. Cette méthode s'appuie sur le fonctionnement interne de SoundCloud : si elle cesse de marcher, utilise les méthodes ci-dessous.</p>
+            <p><b>Recréer les bacs sur SoundCloud.</b> Après le rangement, clique sur « Copier pour SoundCloud » (ou sur « Envoyer ce bac » dans un bac). Va sur soundcloud.com, connecté, et clique sur le favori « Envoyer à SoundCloud » : il demande confirmation puis crée une playlist privée par bac, avec le nom du bac. Ton navigateur peut demander l'autorisation de lire le presse-papiers : accepte, ou colle le texte dans la boîte qui s'ouvre.</p>
             <p><b>Coller des titres.</b> Un titre par ligne : <code>Artiste - Titre</code>. Tu peux ajouter, séparés par <code>|</code>, un genre, un BPM et un lien SoundCloud. Les liens de titres seuls sont aussi acceptés.</p>
             <p><b>Importer un fichier</b> (.txt, .csv ou .json), par exemple l'export CSV de cet outil. Pour lire une playlist SoundCloud avec le genre de chaque titre, installe <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener">yt-dlp</a> puis lance cette commande :</p>
             <div class="cmd">
@@ -78,6 +83,7 @@
       <div class="results-head">
         <p id="summary" class="summary"></p>
         <div class="export">
+          <button type="button" id="push-all" class="btn btn-go">Copier pour SoundCloud</button>
           <button type="button" id="dl-zip" class="btn btn-solid">Télécharger le ZIP</button>
           <button type="button" id="dl-csv" class="btn btn-line">Télécharger le CSV</button>
         </div>
@@ -95,7 +101,7 @@
       <div id="panel-doublons" role="tabpanel" aria-labelledby="tab-doublons" hidden class="panel"></div>
       <div id="panel-versions" role="tabpanel" aria-labelledby="tab-versions" hidden class="panel"></div>
 
-      <p class="phase2">L'envoi direct des bacs vers SoundCloud et les suggestions de nouveaux sons ne sont pas encore branchés : ils demandent l'accès à l'API SoundCloud.</p>
+      <p class="phase2">Pour recréer tes bacs sur SoundCloud : clique sur « Copier pour SoundCloud », ouvre soundcloud.com connecté à ton compte, puis clique sur le favori « Envoyer à SoundCloud ». Les suggestions de nouveaux sons ne sont pas encore branchées.</p>
     </section>
   </main>
 

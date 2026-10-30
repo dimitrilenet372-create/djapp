@@ -32,6 +32,16 @@ Pour l'essayer en local : `npx serve .` puis ouvre l'adresse affichée. Les modu
 
 Le favori lit les titres, genres, tags et liens que la page SoundCloud charge déjà, puis les envoie à l'app dans l'adresse (`#import=…`) : rien ne passe par un serveur.
 
+## Recréer tes bacs sur SoundCloud
+
+1. Glisse aussi le bouton vert **Envoyer à SoundCloud** dans ta barre de favoris.
+2. Range tes playlists dans l'app, puis clique sur **Copier pour SoundCloud** (ou **Envoyer ce bac** dans un bac).
+3. Ouvre soundcloud.com, connecté à ton compte, et clique sur le favori. Il demande confirmation, puis crée une playlist **privée** par bac, au nom du bac, et indique pour chacune le nombre de titres réellement ajoutés.
+
+Le navigateur peut demander l'autorisation de lire le presse-papiers : accepte, ou colle le texte dans la boîte qui s'ouvre. Les titres arrivent par leur identifiant SoundCloud (connu quand la playlist a été ajoutée avec le favori) ou, à défaut, par leur lien ; un titre sans lien est ignoré. SoundCloud limite une playlist à 500 titres : au-delà, elle est découpée en « Nom (1) », « Nom (2) »…
+
+Ce favori utilise la session ouverte sur soundcloud.com et le fonctionnement interne du site, pas l'API officielle. Il n'a été testé que contre une simulation de SoundCloud : si le nombre de titres annoncé est inférieur à ce qui est attendu, ou si une erreur s'affiche, note le message.
+
 ## Formats acceptés
 
 - **Texte** : un titre par ligne, `Artiste - Titre`. Champs facultatifs séparés par `|` : genre, BPM, lien SoundCloud.
@@ -52,12 +62,12 @@ Puis importe `playlist1.json` dans la carte de la playlist.
 - Le style vient du genre renseigné sur SoundCloud, puis des tags et des mots du titre. Sans genre, le rangement est approximatif : déplace les titres à la main ou importe un fichier avec les genres.
 - Le favori s'appuie sur le fonctionnement interne du site SoundCloud, pas sur son API officielle : il peut cesser de marcher si SoundCloud change. Les autres méthodes (texte, fichier) restent possibles. Il a été testé contre une simulation de SoundCloud, pas encore sur le vrai site.
 - Un lien de playlist collé dans l'app n'est pas lu : un navigateur ne peut pas interroger SoundCloud depuis une autre page.
-- Pas encore de suggestions de nouveaux sons, de BPM ni de tonalité, ni d'envoi vers SoundCloud.
+- Pas encore de suggestions de nouveaux sons, ni de BPM ou de tonalité.
 
 ## Suite prévue
 
 1. **Découverte** : recherche de titres par genre et plage de BPM via l'API SoundCloud, classés par proximité avec tes bacs.
-2. **Envoi vers SoundCloud** : création des playlists via l'API. Il faut un abonnement Artist Pro pour obtenir les identifiants, et probablement une petite fonction serverless gratuite (Cloudflare Workers, par exemple), car une page statique ne peut pas garder un secret d'application.
+2. **Envoi officiel vers SoundCloud** : remplacer le favori d'envoi par l'API officielle. Il faut un abonnement Artist Pro pour obtenir les identifiants, et probablement une petite fonction serverless gratuite (Cloudflare Workers, par exemple), car une page statique ne peut pas garder un secret d'application.
 3. **Matching DJ** : BPM et tonalité (roue Camelot) pour proposer des enchaînements.
 
 ## Développement
@@ -69,6 +79,6 @@ npm test
 
 - `js/core.js` : lecture des données, doublons, versions, styles, exports (aucune dépendance au navigateur)
 - `js/zip.js` : création du ZIP
-- `js/bookmarklet.js` : code du favori d'import
+- `js/bookmarklet.js` : code des deux favoris (import et envoi vers SoundCloud)
 - `js/app.js` : interface
 - `test/` : tests de la logique et de l'interface (jsdom)

@@ -80,6 +80,7 @@ export async function extractor(win, appUrl) {
 
     const parseTags = (s) => (s ? (s.match(/"[^"]+"|\S+/g) || []).map((x) => x.replace(/"/g, '')) : []);
     const out = full.map((t) => ({
+      id: t.id,
       title: t.title,
       uploader: (t.publisher_metadata && t.publisher_metadata.artist) || (t.user && t.user.username) || '',
       genre: t.genre || '',
@@ -107,3 +108,178 @@ export async function extractor(win, appUrl) {
 export const bookmarkletCode = (appUrl) => `void (${extractor.toString()})(window, ${JSON.stringify(appUrl)});`;
 
 export const bookmarkletHref = (appUrl) => 'javascript:' + encodeURIComponent(bookmarkletCode(appUrl));
+
+// --------------------------------------------------------------------------- //
+// Favori « Envoyer à SoundCloud » : tourne sur soundcloud.com, connecté, lit les bacs copiés depuis
+// l'app (presse-papiers, sinon boîte de collage) et crée une playlist PRIVÉE par bac avec la session
+// de la personne. Même contrainte que `extractor` : le code doit rester autonome.
+// Le fonctionnement interne de SoundCloud n'étant pas documenté, on vérifie le nombre de titres
+// réellement présents après la création et on le dit, au lieu d'annoncer un succès supposé.
+// --------------------------------------------------------------------------- //
+export async function pusher(win) {
+  const doc = win.document;
+  let box = null;
+  const say = (text, ms) => {
+    if (!box) {
+      box = doc.createElement('div');
+      box.style.cssText =
+        'position:fixed;z-index:2147483647;top:16px;left:50%;transform:translateX(-50%);max-width:90vw;' +
+        'padding:10px 18px;border-radius:18px;background:#1d38f5;color:#fff;font:600 14px/1.3 system-ui,sans-serif;' +
+        'box-shadow:0 6px 24px rgba(0,0,0,.3);white-space:pre-line';
+      doc.body.appendChild(box);
+    }
+    box.textContent = text;
+    if (ms) {
+      win.setTimeout(() => {
+        if (box) box.remove();
+        box = null;
+      }, ms);
+    }
+  };
+  const fail = (text) => say('Le bac : ' + text, 9000);
+  const MAX = 500; // limite de titres par playlist SoundCloud
+
+  try {
+    if (!/(^|\.)soundcloud\.com$/.test(win.location.hostname)) {
+      return fail('ouvre soundcloud.com (connecté à ton compte), puis clique sur ce favori.');
+    }
+
+    // 1. ce que l'app a copié
+    let text = '';
+    try {
+      text = await win.navigator.clipboard.readText();
+    } catch (e) {
+      text = '';
+    }
+    if (!/^\s*LEBAC1:/.test(text || '')) {
+      text = win.prompt("Le bac : colle ici les titres copiés depuis l'app (Ctrl+V), puis valide.") || '';
+    }
+    const m = /^\s*LEBAC1:([\s\S]*)$/.exec(text);
+    if (!m) return fail("rien à envoyer. Dans l'app, clique d'abord sur « Copier pour SoundCloud ».");
+    let lists;
+    try {
+      lists = JSON.parse(m[1]).lists;
+    } catch (e) {
+      lists = null;
+    }
+    if (!Array.isArray(lists) || !lists.length) return fail("le texte copié n'est pas lisible. Recopie-le depuis l'app.");
+
+    // les playlists SoundCloud sont limitées à 500 titres : on découpe au besoin
+    const jobs = [];
+    for (const l of lists) {
+      const items = (l.items || []).filter((x) => typeof x === 'number' || typeof x === 'string');
+      const parts = Math.max(1, Math.ceil(items.length / MAX));
+      for (let i = 0; i < parts; i++) {
+        jobs.push({ name: String(l.name || 'Playlist').slice(0, 100) + (parts > 1 ? ` (${i + 1})` : ''), items: items.slice(i * MAX, (i + 1) * MAX) });
+      }
+    }
+    const total = jobs.reduce((n, j) => n + j.items.length, 0);
+    const ask =
+      `Le bac va créer ${jobs.length} playlist${jobs.length > 1 ? 's' : ''} PRIVÉE${jobs.length > 1 ? 'S' : ''} sur ton compte SoundCloud (${total} titres) :\n` +
+      jobs.slice(0, 12).map((j) => `• ${j.name} (${j.items.length})`).join('\n') +
+      (jobs.length > 12 ? `\n• … et ${jobs.length - 12} autres` : '') +
+      '\n\nContinuer ?';
+    if (!win.confirm(ask)) return say('Le bac : annulé, rien n\'a été créé.', 3500);
+
+    // 2. identifiants de la session
+    let clientId = '';
+    const hyd = win.__sc_hydration || [];
+    const api = hyd.find((h) => h && h.hydratable === 'apiClient');
+    if (api && api.data && api.data.id) clientId = api.data.id;
+    if (!clientId) {
+      const res = win.performance.getEntriesByType('resource');
+      for (let i = res.length - 1; i >= 0 && !clientId; i--) {
+        const r = /[?&]client_id=([A-Za-z0-9]+)/.exec(res[i].name);
+        if (r) clientId = r[1];
+      }
+    }
+    if (!clientId) return fail('identifiant de page introuvable. Recharge la page puis réessaie.');
+    const tk = /(?:^|;\s*)oauth_token=([^;]+)/.exec(doc.cookie || '');
+    if (!tk) return fail("tu ne sembles pas connecté à SoundCloud. Connecte-toi, recharge la page, puis réessaie.");
+    const token = decodeURIComponent(tk[1]);
+
+    const call = async (method, path, body, params) => {
+      const q = new URLSearchParams(params || {});
+      q.set('client_id', clientId);
+      const init = { method, headers: { Authorization: 'OAuth ' + token } };
+      if (body !== undefined) {
+        init.headers['Content-Type'] = 'application/json';
+        init.body = JSON.stringify(body);
+      }
+      const r = await win.fetch('https://api-v2.soundcloud.com/' + path + '?' + q.toString(), init);
+      const raw = await r.text();
+      if (!r.ok) throw new Error(`${method} ${path} : SoundCloud a répondu ${r.status} ${String(raw).slice(0, 80)}`.trim());
+      try {
+        return JSON.parse(raw);
+      } catch (e) {
+        return {};
+      }
+    };
+    const countOf = (p) => (p && typeof p.track_count === 'number' ? p.track_count : p && Array.isArray(p.tracks) ? p.tracks.length : 0);
+
+    // 3. liens → identifiants (les titres venus du favori « Ajouter » ont déjà le leur)
+    let done = 0;
+    for (const j of jobs) {
+      const ids = [];
+      for (const it of j.items) {
+        if (typeof it === 'number') {
+          ids.push(it);
+          continue;
+        }
+        say(`Le bac : ${j.name} : lecture des liens… ${ids.length} / ${j.items.length}`);
+        try {
+          const t = await call('GET', 'resolve', undefined, { url: it });
+          if (t && t.kind === 'track' && t.id) ids.push(t.id);
+        } catch (e) {
+          /* lien illisible : ce titre est écarté */
+        }
+      }
+      j.ids = ids;
+    }
+
+    // 4. création, puis vérification
+    const report = [];
+    for (const j of jobs) {
+      if (!j.ids.length) {
+        report.push(`• ${j.name} : aucun titre reconnu, non créée`);
+        continue;
+      }
+      say(`Le bac : création de « ${j.name} » (${++done} / ${jobs.length})…`);
+      try {
+      let pl;
+      try {
+        pl = await call('POST', 'playlists', { playlist: { title: j.name, sharing: 'private', tracks: j.ids } });
+      } catch (e1) {
+        // création avec titres refusée : on crée la playlist vide, puis on la remplit
+        pl = await call('POST', 'playlists', { playlist: { title: j.name, sharing: 'private' } });
+      }
+      let n = countOf(pl);
+      if (n < j.ids.length && pl && pl.id) {
+        // la création n'a pas pris les titres : on les ajoute par une mise à jour
+        const bodies = [{ playlist: { tracks: j.ids } }, { tracks: j.ids }, { playlist: { tracks: j.ids.map((id) => ({ id })) } }];
+        for (const b of bodies) {
+          if (n >= j.ids.length) break;
+          try {
+            const up = await call('PUT', 'playlists/' + pl.id, b);
+            if (countOf(up) > n) {
+              pl = { ...pl, ...up };
+              n = countOf(up);
+            }
+          } catch (e) {
+            /* variante refusée : on essaie la suivante */
+          }
+        }
+      }
+      report.push(n >= j.ids.length ? `• ${j.name} : ${n} titres ✓` : `• ${j.name} : seulement ${n} / ${j.ids.length} titres (vérifie sur SoundCloud)`);
+      } catch (e) {
+        report.push(`• ${j.name} : échec (${(e && e.message) || e})`);
+      }
+    }
+    say('Le bac : terminé. Les playlists sont privées, dans « Bibliothèque > Playlists ».\n' + report.join('\n'), 20000);
+  } catch (e) {
+    fail('échec (' + ((e && e.message) || e) + ').');
+  }
+}
+
+export const pusherCode = () => `void (${pusher.toString()})(window);`;
+export const pusherHref = () => 'javascript:' + encodeURIComponent(pusherCode());
