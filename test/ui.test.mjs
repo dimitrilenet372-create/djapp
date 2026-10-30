@@ -1,4 +1,4 @@
-// Test de bout en bout de l'interface dans jsdom : npm test
+// Interface de l'app dans jsdom : npm test
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -21,9 +21,9 @@ Object.defineProperty(globalThis, 'navigator', {
 });
 URL.createObjectURL = (b) => { globalThis.__blob = b; return 'blob:test'; };
 URL.revokeObjectURL = () => {};
-// jsdom ne sait pas « naviguer » : on enregistre les téléchargements déclenchés par l'app
 globalThis.__downloads = [];
 window.HTMLAnchorElement.prototype.click = function () { globalThis.__downloads.push(this.download); };
+window.scrollTo = () => {};
 
 await import('../js/app.js');
 
@@ -31,218 +31,254 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const click = (el) => el.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
 const type = (el, value) => { el.value = value; el.dispatchEvent(new window.Event('input', { bubbles: true })); };
-const dnd = (type, el) => {
-  const ev = new window.Event(type, { bubbles: true, cancelable: true });
-  ev.dataTransfer = { setData() {}, effectAllowed: '', dropEffect: '' };
-  el.dispatchEvent(ev);
-};
-const crates = () => $$('.crate:not(.crate-new)');
-const rowCount = () => $$('.row').length;
+const wait = (ms = 20) => new Promise((r) => setTimeout(r, ms));
+const cards = () => $$('.card');
+const rows = () => $$('.trk');
+const names = () => cards().map((c) => $('.card-name', c).textContent);
+const open = (i) => click($('.card-open', cards()[i]));
+const sheetOpen = () => !$('#sheet').hidden;
+const stored = () => JSON.parse(window.localStorage.getItem('lebac.v2') || '{"playlists":[]}').playlists;
 
-test('exemple : bacs, doublons et versions apparaissent', () => {
-  click($('#load-sample'));
-  assert.equal($('#results').hidden, false);
-  assert.equal($('#empty').hidden, true);
-  assert.match($('#summary').textContent, /45 titres lus, 4 doublons retirés\. 41 titres rangés/);
-  assert.ok(crates().length >= 4, `bacs: ${crates().length}`);
-  assert.equal(rowCount(), 41);
-  assert.equal($('#n-doublons').textContent, '4');
-  assert.equal($('#n-versions').textContent, '2');
-  assert.ok($('.crate-name').value.length > 0);
-  // le dernier bac est « Divers »
-  assert.equal(crates().at(-1).querySelector('.crate-name').value, 'Divers');
+test('au départ : un seul bouton, aucune playlist, un exemple proposé', () => {
+  assert.equal($('#start').hidden, false);
+  assert.equal(cards().length, 0);
+  assert.equal(sheetOpen(), false);
+  assert.equal($('#detail').hidden, true);
+  assert.match($('#add').textContent, /Ajouter une playlist/);
 });
 
-test('sélection puis déplacement vers un autre bac', () => {
-  const first = $('.row');
-  const id = first.dataset.id;
-  click(first);
-  assert.equal(first.getAttribute('aria-checked'), 'true');
-  assert.equal($('#selbar').hidden, false);
-  assert.equal($('#sel-count').textContent, '1 titre sélectionné');
-  const target = $$('#sel-target option').at(-1).value;
-  $('#sel-target').value = target;
-  click($('#sel-move'));
-  const moved = $(`.row[data-id="${id}"]`);
-  assert.equal(moved.closest('.crate').dataset.id, target);
-  assert.equal($('#selbar').hidden, true);
-  assert.equal(rowCount(), 41);
-});
-
-test('glisser-déposer sur la zone « nouveau bac »', () => {
-  const before = crates().length;
-  const row = $('.row');
-  const id = row.dataset.id;
-  dnd('dragstart', row);
-  dnd('dragover', $('.crate-new'));
-  assert.ok($('.crate-new').classList.contains('drop'));
-  dnd('drop', $('.crate-new'));
-  assert.equal(crates().length, before + 1);
-  const home = $(`.row[data-id="${id}"]`).closest('.crate');
-  assert.equal(home.querySelector('.crate-name').value, 'Nouveau bac');
-  assert.equal(rowCount(), 41);
-});
-
-test('renommer un bac met à jour la liste de destination', () => {
-  const input = crates().at(-1).querySelector('.crate-name');
-  type(input, 'Warm-up');
-  input.dispatchEvent(new window.Event('change', { bubbles: true }));
-  click($('.row'));
-  assert.ok($$('#sel-target option').some((o) => o.textContent === 'Warm-up'));
-  click($('#sel-clear'));
-  assert.equal($('#selbar').hidden, true);
-});
-
-test('un bac vide peut être retiré', () => {
-  const before = crates().length;
-  // vide le bac « Warm-up » en déplaçant son titre ailleurs
-  const warm = crates().find((c) => c.querySelector('.crate-name').value === 'Warm-up');
-  click($('.row', warm));
-  $('#sel-target').value = crates()[0].dataset.id;
-  click($('#sel-move'));
-  const emptied = crates().find((c) => c.querySelector('.crate-name').value === 'Warm-up');
-  click($('[data-act="remove-crate"]', emptied));
-  assert.equal(crates().length, before - 1);
-});
-
-test('doublons : on peut garder un titre retiré', () => {
-  click($('[data-view="doublons"]'));
-  assert.equal($('#panel-doublons').hidden, false);
-  assert.equal($('#panel-bacs').hidden, true);
-  const n = $$('#panel-doublons tbody tr').length;
-  click($('[data-act="restore"]'));
-  assert.equal($$('#panel-doublons tbody tr').length, n - 1);
-  assert.equal(rowCount(), 42);
-  assert.equal($('#n-doublons').textContent, String(n - 1));
-});
-
-test('versions : réunir une famille dans le même bac', () => {
-  click($('[data-view="versions"]'));
-  const join = $('[data-act="join"]');
-  if (join) {
-    click(join);
-  }
-  const fams = $$('#panel-versions .fam');
-  assert.ok(fams.length >= 2);
-  assert.ok(fams.every((f) => f.textContent.includes('Déjà dans le même bac')), 'toutes les familles réunies');
-  click($('[data-view="bacs"]'));
-});
-
-test('copie des liens et exports', async () => {
-  const withLinks = crates().find((c) => $$('.open', c).length);
-  click($('[data-act="copy-links"]', withLinks));
-  await new Promise((r) => setTimeout(r, 10));
-  assert.match(globalThis.__copied, /^https:\/\/soundcloud\.com\//);
-
-  click($('#dl-zip'));
-  assert.ok(globalThis.__blob.size > 200);
-  assert.equal(globalThis.__blob.type, 'application/zip');
-  click($('#dl-csv'));
-  assert.equal(globalThis.__blob.type, 'text/csv;charset=utf-8');
-  assert.deepEqual(globalThis.__downloads, ['le-bac.zip', 'le-bac.csv']);
-});
-
-test('envoi vers SoundCloud : copie de tous les bacs, ou d\'un seul', async () => {
-  globalThis.__copied = '';
-  click($('#push-all'));
-  await new Promise((r) => setTimeout(r, 10));
-  assert.ok(globalThis.__copied.startsWith('LEBAC1:'));
-  const all = JSON.parse(globalThis.__copied.slice(7)).lists;
-  assert.ok(all.length >= 1 && all.every((l) => l.items.length));
-  assert.match($('#toast').textContent, /titres en \d+ playlists? copiés.*Envoyer à SoundCloud/);
-
-  globalThis.__copied = '';
-  const crate = crates().find((c) => $('[data-act="push-crate"]', c));
-  click($('[data-act="push-crate"]', crate));
-  await new Promise((r) => setTimeout(r, 10));
-  const one = JSON.parse(globalThis.__copied.slice(7)).lists;
-  assert.equal(one.length, 1);
-  assert.equal(one[0].name, $('.crate-name', crate).value);
-});
-
-test('second favori : bouton et code disponibles', () => {
-  const href = $('#bm2-link').getAttribute('href');
-  assert.ok(href.startsWith('javascript:'));
-  assert.ok(decodeURIComponent(href).includes('oauth_token'));
-  click($('#bm2-link'));
-  assert.match($('#toast').textContent, /soundcloud\.com/);
-  click($('#bm2-copy'));
-});
-
-test('un titre piégé n\'injecte pas de HTML', () => {
-  const ta = $$('.source textarea');
-  type(ta[0], 'Hack - <img src=x onerror=alert(1)> | <b>x</b>');
-  type(ta[1], '');
-  $('#form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-  assert.equal($('#board img'), null, 'aucun élément injecté');
-  assert.equal($('#board b'), null);
-  assert.ok($('.row').getAttribute('title').includes('<img'), 'le texte reste lisible dans l\'info-bulle');
-  assert.ok($('#board').textContent.includes('<img src=x'));
-});
-
-
-test('lien de playlist collé : message clair, pas de plantage', () => {
-  const ta = $$('.source textarea');
-  type(ta[0], 'https://soundcloud.com/moi/sets/ma-playlist');
-  type(ta[1], '');
-  const before = $('#summary').textContent;
-  $('#form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-  assert.match($('#toast').textContent, /liens de playlist/);
-  assert.equal($('#summary').textContent, before);
-});
-
-const payload = (name, tracks) => '#import=' + Buffer.from(JSON.stringify({ v: 1, name, tracks }), 'utf8').toString('base64url');
-const wait = (ms = 30) => new Promise((r) => setTimeout(r, ms));
-
-test('favori : le bouton embarque l\'adresse de l\'app et ne s\'exécute pas ici', () => {
+test('« Ajouter » ouvre les deux étapes et le favori à glisser', () => {
+  click($('#add'));
+  assert.equal(sheetOpen(), true);
   const href = $('#bm-link').getAttribute('href');
   assert.ok(href.startsWith('javascript:'));
   assert.ok(decodeURIComponent(href).includes('"http://localhost/"'));
   click($('#bm-link'));
   assert.match($('#toast').textContent, /barre de favoris/);
+  assert.equal(sheetOpen(), true);
+  document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  assert.equal(sheetOpen(), false);
 });
 
-test('import depuis le favori : remplit les cartes vides puis en ajoute', async () => {
-  click($('#clear-all'));
-  assert.equal($$('.source').length, 2);
+test('l\'exemple affiche deux playlists en pochettes', () => {
+  click($('#start-demo'));
+  assert.deepEqual(names(), ['Soirée été', 'Warm-up']);
+  assert.equal($('#start').hidden, true);
+  assert.match($('.card-meta', cards()[0]).textContent, /24 titres/);
+  assert.ok($('.cover-letter', cards()[0]), 'sans pochette : la lettre sur fond coloré');
+});
+
+test('entrer dans une playlist : titres, doublons marqués, bouton de nettoyage', () => {
+  open(0);
+  assert.equal($('#detail').hidden, false);
+  assert.equal($('#home').hidden, true);
+  assert.equal($('#pl-name').value, 'Soirée été');
+  assert.equal(rows().length, 24);
+  assert.equal($$('.trk.is-dup').length, 3);
+  assert.equal($('#clean').textContent, 'Retirer 3 doublons');
+  assert.ok($('.badge.is-dup').title.includes('Même titre'));
+});
+
+test('nettoyer en un clic, puis annuler', () => {
+  click($('#clean'));
+  assert.equal(rows().length, 21);
+  assert.match($('#notice').textContent, /3 doublons retirés\. Il reste 21 titres/);
+  assert.equal($('#clean').disabled, true);
+  assert.equal($('#clean').textContent, 'Aucun doublon ✓');
+  click($('[data-act="undo"]'));
+  assert.equal(rows().length, 24);
+  assert.equal($('#clean').textContent, 'Retirer 3 doublons');
+  click($('#clean'));
+  assert.equal(rows().length, 21);
+});
+
+test('retirer un titre, annuler', () => {
+  const first = $('.trk-title', rows()[0]).textContent;
+  click($('[data-act="remove-track"]', rows()[0]));
+  assert.equal(rows().length, 20);
+  assert.match($('#notice').textContent, new RegExp(`${first}.*retiré`));
+  click($('[data-act="undo"]'));
+  assert.equal(rows().length, 21);
+});
+
+test('renommer la playlist', () => {
+  const input = $('#pl-name');
+  type(input, 'Set du samedi');
+  input.dispatchEvent(new window.Event('change', { bubbles: true }));
+  click($('#back'));
+  assert.deepEqual(names(), ['Set du samedi', 'Warm-up']);
+});
+
+test('les versions d\'un même titre portent un badge, le titre de base est affiché', () => {
+  open(1);
+  const badges = $$('.badge:not(.is-dup)').map((b) => b.textContent);
+  assert.ok(badges.length >= 2, `badges: ${badges}`);
+  assert.ok(badges.some((b) => /remix/i.test(b)));
+  assert.ok(badges.includes('Original'));
+  click($('#back'));
+});
+
+test('recréer sur SoundCloud : copie, étapes et favori vert', async () => {
+  // aucun titre de l'exemple n'a d'identifiant : seuls ceux qui ont un lien partent
+  open(0);
+  globalThis.__copied = '';
+  click($('#recreate'));
+  await wait();
+  assert.ok(globalThis.__copied.startsWith('LEBAC1:'));
+  const lists = JSON.parse(globalThis.__copied.slice(7)).lists;
+  assert.equal(lists.length, 1);
+  assert.equal(lists[0].name, 'Set du samedi');
+  assert.equal(sheetOpen(), true);
+  assert.match($('#sheet-title').textContent, /Recréer « Set du samedi » sur SoundCloud/);
+  assert.ok(decodeURIComponent($('#bm2-link').getAttribute('href')).includes('oauth_token'));
+  assert.match($('#sheet-body').textContent, /soundcloud\.com.*connecté/);
+  click($('#sheet-x'));
+  assert.equal(sheetOpen(), false);
+});
+
+test('une playlist sans lien ni identifiant ne part pas', async () => {
+  click($('#back'));
+  click($('#add'));
+  type($('#paste-name'), 'Sans lien');
+  type($('#paste-text'), 'Artiste - Un\nArtiste - Deux');
+  $('#paste-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await wait();
+  assert.equal(sheetOpen(), false);
+  open(2);
+  globalThis.__copied = '';
+  click($('#recreate'));
+  await wait();
+  assert.equal(globalThis.__copied, '');
+  assert.match($('#toast').textContent, /Aucun titre à envoyer/);
+  click($('#back'));
+});
+
+test('comparer deux playlists', () => {
+  click($('.pick', cards()[0]));
+  assert.equal($('#homebar').hidden, false);
+  assert.match($('#homebar-text').textContent, /1 playlist choisie/);
+  assert.equal($('#hb-compare').hidden, true);
+  click($('.pick', cards()[1]));
+  assert.equal($('#hb-compare').hidden, false);
+  click($('#hb-compare'));
+  assert.equal(sheetOpen(), true);
+  const stats = $$('.stat b').map((b) => Number(b.textContent));
+  assert.ok(stats[0] >= 3, `en commun: ${stats[0]}`);
+  assert.match($('#sheet-body').textContent, /En commun/);
+});
+
+test('fusionner : une nouvelle playlist sans doublons, les deux autres intactes', () => {
+  click($('[data-act="merge-two"]'));
+  assert.equal(sheetOpen(), false);
+  assert.equal($('#detail').hidden, false);
+  assert.equal($('#pl-name').value, 'Set du samedi + Warm-up');
+  assert.match($('#notice').textContent, /Fusion de 2 playlists/);
+  assert.equal($$('.trk.is-dup').length, 0);
+  const [, kept, removed] = $('#notice').textContent.match(/(\d+) titres, (\d+) doublons? retirés?/).map(Number);
+  assert.equal(rows().length, kept);
+  assert.equal(kept + removed, 21 + 24, 'rien ne se perd : gardés + retirés = titres des deux playlists');
+  click($('#back'));
+  assert.equal(cards().length, 4);
+});
+
+test('ranger par style : des playlists en plus, la source reste', () => {
+  const before = cards().length;
+  open(cards().length - 1); // la fusion
+  click($('#split'));
+  assert.ok(cards().length >= before + 2, `${cards().length} cartes`);
+  assert.ok(names().some((n) => n.startsWith('Set du samedi + Warm-up · ')));
+  assert.match($('#toast').textContent, /playlists créées par style/);
+});
+
+test('exporter en CSV, supprimer avec confirmation', () => {
+  open(0);
+  click($('#export'));
+  assert.equal(globalThis.__blob.type, 'text/csv;charset=utf-8');
+  assert.deepEqual(globalThis.__downloads, ['Set_du_samedi.csv']);
+  const n = cards().length;
+  click($('#delete'));
+  assert.match($('#notice').textContent, /Supprimer « Set du samedi »/);
+  click($('[data-act="notice-close"]'));
+  click($('#back'));
+  assert.equal(cards().length, n);
+  open(0);
+  click($('#delete'));
+  click($('[data-act="delete-yes"]'));
+  assert.equal($('#home').hidden, false);
+  assert.equal(cards().length, n - 1);
+  assert.ok(!names().includes('Set du samedi'));
+});
+
+test('import depuis le favori : une nouvelle playlist avec pochette, adresse nettoyée', async () => {
+  const payload = (name, tracks, art = '') =>
+    '#import=' + Buffer.from(JSON.stringify({ v: 1, name, art, tracks }), 'utf8').toString('base64url');
+  const before = cards().length;
   window.location.hash = payload('Chill é', [
-    { title: 'Moi - Un', uploader: 'x', genre: 'Lo-fi', webpage_url: 'https://soundcloud.com/a/un' },
-    { title: 'Deux', uploader: 'Bob', genre: 'House' },
-  ]);
-  await wait();
-  let cards = $$('.source');
-  assert.equal($('.source-name', cards[0]).value, 'Chill é');
-  assert.match(cards[0].textContent, /2 titres/);
-  assert.equal(window.location.hash, '', 'l\'adresse est nettoyée');
-  assert.match($('#toast').textContent, /Chill é : 2 titres ajoutés/);
+    { id: 11, title: 'Moi - Un', uploader: 'x', genre: 'Lo-fi', webpage_url: 'https://soundcloud.com/a/un', art: 'artworks-1-a' },
+    { id: 12, title: 'Deux', uploader: 'Bob', genre: 'House' },
+  ], 'artworks-cover-z');
+  await wait(40);
+  assert.equal(cards().length, before + 1);
+  const card = cards().at(-1);
+  assert.equal($('.card-name', card).textContent, 'Chill é');
+  assert.match($('.card-meta', card).textContent, /2 titres/);
+  assert.ok($('img[data-art]', card).src.includes('artworks-cover-z-t200x200.jpg'), 'pochette de la playlist');
+  assert.equal(window.location.hash, '');
+  assert.match($('#toast').textContent, /Chill é ajoutée : 2 titres/);
 
-  window.location.hash = payload('Deep', [{ title: 'Trois', uploader: 'Z', genre: 'Techno' }]);
-  await wait();
-  assert.equal($$('.source').length, 2);
-  assert.match($$('.source')[1].textContent, /1 titres/);
-
-  window.location.hash = payload('Troisième', [{ title: 'Quatre', uploader: 'Y' }]);
-  await wait();
-  assert.equal($$('.source').length, 3, 'une carte est ajoutée quand les autres sont pleines');
+  // le même nom reçoit un numéro
+  window.location.hash = payload('Chill é', [{ title: 'Trois', uploader: 'Z' }]);
+  await wait(40);
+  assert.equal(names().at(-1), 'Chill é (2)');
 
   window.location.hash = '#import=@@@';
-  await wait();
-  assert.equal($$('.source').length, 3, 'adresse invalide ignorée');
+  await wait(40);
+  assert.equal(cards().length, before + 2, 'adresse invalide ignorée');
   window.location.hash = '';
 
-  click($('#form button[type="submit"]'));
-  $('#form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-  assert.match($('#summary').textContent, /4 titres lus/);
+  // les identifiants SoundCloud arrivent jusqu'à l'envoi
+  open(cards().length - 2);
+  globalThis.__copied = '';
+  click($('#recreate'));
+  await wait();
+  assert.deepEqual(JSON.parse(globalThis.__copied.slice(7)).lists, [{ name: 'Chill é', items: [11, 12] }]);
+  click($('#sheet-x'));
+  click($('#back'));
 });
 
-test('les playlists ajoutées sont conservées dans le navigateur', () => {
-  const saved = JSON.parse(window.localStorage.getItem('lebac.v1'));
-  assert.equal(saved.sources.length, 3);
-  assert.equal(saved.sources[0].name, 'Chill é');
-  assert.equal(saved.sources[0].files[0].tracks.length, 2);
-  assert.equal(saved.sources[0].files[0].tracks[0].genre, 'Lo-fi');
-  click($('#clear-all'));
-  assert.equal(JSON.parse(window.localStorage.getItem('lebac.v1')).sources.length, 2);
+test('un titre piégé n\'injecte pas de HTML', async () => {
+  click($('#add'));
+  type($('#paste-name'), '<b>gras</b>');
+  type($('#paste-text'), 'Hack - <img src=x onerror=alert(1)> | <b>x</b>');
+  $('#paste-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await wait();
+  assert.equal($('#grid img[src="x"]'), null);
+  assert.equal($('#grid b'), null);
+  assert.ok(names().includes('<b>gras</b>'));
+  open(cards().length - 1);
+  assert.equal($('#tracks img[src="x"]'), null);
+  assert.equal($('#tracks b'), null);
+  assert.ok($('#tracks').textContent.includes('<img src=x'));
+  click($('#back'));
+});
+
+test('lien de playlist collé : message clair, pas de plantage', async () => {
+  const before = cards().length;
+  click($('#add'));
+  type($('#paste-text'), 'https://soundcloud.com/moi/sets/ma-playlist');
+  $('#paste-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await wait();
+  assert.equal(sheetOpen(), true);
+  assert.match($('.warn').textContent, /lien de playlist ne peut pas être lu/);
+  assert.equal(cards().length, before);
+  click($('#sheet-x'));
+});
+
+test('les playlists sont enregistrées dans le navigateur et se rechargent', async () => {
+  await wait(300);
+  const saved = stored();
+  assert.equal(saved.length, cards().length);
+  assert.ok(saved.some((p) => p.name === 'Chill é' && p.art === 'artworks-cover-z' && p.tracks[0].scid === 11));
 });
 
 test('aucune erreur JavaScript levée', () => {

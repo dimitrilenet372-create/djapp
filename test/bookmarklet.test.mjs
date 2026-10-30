@@ -300,3 +300,27 @@ test('le code du second favori est valide, sur une seule adresse', () => {
   assert.equal(decodeURIComponent(href.slice('javascript:'.length)), code);
   assert.ok(href.length < 30000, `longueur ${href.length}`);
 });
+
+test('pochettes : réduites à leur identifiant, celle de la playlist et celles des titres', async () => {
+  const { win } = fakeWin({
+    hydration: [{ hydratable: 'apiClient', data: { id: 'C' } }],
+    responses: (path) =>
+      path === 'resolve'
+        ? {
+            kind: 'playlist', title: 'Avec pochettes', artwork_url: 'https://i1.sndcdn.com/artworks-PL-xyz-large.jpg',
+            tracks: [
+              full(1, { artwork_url: 'https://i1.sndcdn.com/artworks-T1-aaa-large.jpg' }),
+              full(2, { artwork_url: null, user: { username: 'u', avatar_url: 'https://i1.sndcdn.com/avatars-AV-bbb-large.jpg' } }),
+              full(3, { artwork_url: 'https://evil.example/x.jpg' }),
+            ],
+          }
+        : null,
+  });
+  await extractor(win, APP);
+  const imp = core.decodeImport('#' + win.opened.url.split('#')[1]);
+  assert.equal(imp.art, 'artworks-PL-xyz');
+  assert.deepEqual(imp.tracks.map((t) => t.art), ['artworks-T1-aaa', 'avatars-AV-bbb', '']);
+  const parsed = core.parseEntries(imp.tracks, 'X');
+  assert.equal(parsed[0].art, 'artworks-T1-aaa');
+  assert.equal(parsed[0].scid, 1);
+});

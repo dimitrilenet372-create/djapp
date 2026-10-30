@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Le bac, tes playlists SoundCloud rangées</title>
-  <meta name="description" content="Fusionne tes playlists SoundCloud, retire les doublons, relie les versions d'un même titre et range tout par style.">
+  <meta name="description" content="Ajoute tes playlists SoundCloud, retire les doublons en un clic et recrée la version propre sur ton compte.">
   <meta name="theme-color" content="#1d38f5">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d38f5'/%3E%3Crect x='6' y='7' width='6' height='5' rx='1.5' fill='%23ffd84d'/%3E%3Crect x='13' y='7' width='6' height='5' rx='1.5' fill='%23ff9cc2'/%3E%3Crect x='20' y='7' width='6' height='5' rx='1.5' fill='%235fd6b0'/%3E%3Crect x='6' y='14' width='20' height='11' rx='2' fill='white'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,105 +13,59 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="deck">
-    <div class="deck-inner">
-      <div class="deck-top">
-        <h1 class="wordmark">Le bac</h1>
-        <p class="pitch">Fusionne tes playlists SoundCloud, retire les doublons et range-les par style, versions comprises.</p>
-      </div>
-
-      <form id="form" autocomplete="off">
-        <div id="sources" class="sources"></div>
-
-        <div class="bm-row">
-          <a id="bm-link" class="bm" href="#" draggable="true">Ajouter à Le bac</a>
-          <a id="bm2-link" class="bm bm-out" href="#" draggable="true">Envoyer à SoundCloud</a>
-          <p>Glisse ces deux boutons dans ta barre de favoris. Sur une playlist SoundCloud, « Ajouter » l'envoie ici. Une fois tes bacs prêts, « Envoyer » les recrée sur ton compte, en playlists privées.</p>
-          <span class="bm-copy">
-            <button type="button" id="bm-copy" class="link on-blue">Copier le code « Ajouter »</button>
-            <button type="button" id="bm2-copy" class="link on-blue">Copier le code « Envoyer »</button>
-          </span>
-        </div>
-
-        <div class="deck-actions">
-          <button type="submit" class="btn btn-go">Ranger mes playlists</button>
-          <button type="button" id="add-source" class="btn btn-ghost">Ajouter une playlist</button>
-          <button type="button" id="load-sample" class="btn btn-ghost">Essayer avec un exemple</button>
-          <button type="button" id="clear-all" class="btn btn-ghost">Tout effacer</button>
-        </div>
-
-        <details class="settings">
-          <summary>Réglages</summary>
-          <div class="settings-body">
-            <label>
-              <span>Similarité minimale d'un doublon : <output id="threshold-out">90</output> %</span>
-              <input id="threshold" type="range" min="80" max="100" value="90">
-              <small>Plus c'est haut, plus deux titres doivent se ressembler pour être retirés.</small>
-            </label>
-            <label>
-              <span>Taille minimale d'un bac : <output id="minsize-out">5</output> titres</span>
-              <input id="minsize" type="range" min="1" max="30" value="5">
-              <small>Les styles plus petits vont dans le bac « Divers ».</small>
-            </label>
-          </div>
-        </details>
-
-        <details class="help">
-          <summary>Comment récupérer mes playlists ?</summary>
-          <div class="help-body">
-            <p><b>Depuis SoundCloud, le plus simple.</b> Glisse le bouton « Ajouter à Le bac » dans ta barre de favoris (Ctrl+Maj+B pour l'afficher). Ouvre une playlist ou un titre sur soundcloud.com et clique sur le favori : les titres, genres et liens arrivent ici, et restent dans ton navigateur. Si tu ne peux pas glisser le bouton, crée un favori à la main et colle le code copié comme adresse. Cette méthode s'appuie sur le fonctionnement interne de SoundCloud : si elle cesse de marcher, utilise les méthodes ci-dessous.</p>
-            <p><b>Recréer les bacs sur SoundCloud.</b> Après le rangement, clique sur « Copier pour SoundCloud » (ou sur « Envoyer ce bac » dans un bac). Va sur soundcloud.com, connecté, et clique sur le favori « Envoyer à SoundCloud » : il demande confirmation puis crée une playlist privée par bac, avec le nom du bac. Ton navigateur peut demander l'autorisation de lire le presse-papiers : accepte, ou colle le texte dans la boîte qui s'ouvre.</p>
-            <p><b>Coller des titres.</b> Un titre par ligne : <code>Artiste - Titre</code>. Tu peux ajouter, séparés par <code>|</code>, un genre, un BPM et un lien SoundCloud. Les liens de titres seuls sont aussi acceptés.</p>
-            <p><b>Importer un fichier</b> (.txt, .csv ou .json), par exemple l'export CSV de cet outil. Pour lire une playlist SoundCloud avec le genre de chaque titre, installe <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener">yt-dlp</a> puis lance cette commande :</p>
-            <div class="cmd">
-              <code id="cmd-text">yt-dlp --print "%(.{title,uploader,genre,tags,duration,webpage_url})j" "LIEN_DE_LA_PLAYLIST" &gt; playlist1.json</code>
-              <button type="button" class="btn btn-small btn-ghost" id="copy-cmd">Copier la commande</button>
-            </div>
-            <p>Importe ensuite <code>playlist1.json</code> dans la carte de la playlist. Un lien de playlist collé ici n'est pas lu : un navigateur ne peut pas interroger SoundCloud depuis une autre page.</p>
-          </div>
-        </details>
-      </form>
+  <header class="top" id="top">
+    <div class="top-inner">
+      <button type="button" id="back" class="back" hidden>‹ Mes playlists</button>
+      <h1 class="wordmark">Le bac</h1>
+      <p class="pitch" id="pitch">Tes playlists SoundCloud, sans doublons, prêtes pour tes sets.</p>
+      <button type="button" id="add" class="btn btn-go">Ajouter une playlist</button>
     </div>
   </header>
 
   <main>
-    <section id="empty" class="empty">
-      <p>Tes bacs apparaîtront ici. Tout se passe dans ton navigateur : tes playlists ne sont envoyées nulle part.</p>
+    <section id="home" aria-label="Mes playlists">
+      <div id="start" class="start" hidden>
+        <p>Aucune playlist pour l'instant. Ajoute la première : elle s'affiche ici comme dans une app de musique.</p>
+        <button type="button" id="start-demo" class="link">Essayer avec un exemple</button>
+      </div>
+      <div id="grid" class="grid"></div>
     </section>
 
-    <section id="results" hidden>
-      <div class="results-head">
-        <p id="summary" class="summary"></p>
-        <div class="export">
-          <button type="button" id="push-all" class="btn btn-go">Copier pour SoundCloud</button>
-          <button type="button" id="dl-zip" class="btn btn-solid">Télécharger le ZIP</button>
-          <button type="button" id="dl-csv" class="btn btn-line">Télécharger le CSV</button>
-        </div>
-        <div id="notices"></div>
-        <div class="tabs" role="tablist" aria-label="Résultats">
-          <button type="button" role="tab" id="tab-bacs" aria-controls="panel-bacs" aria-selected="true" data-view="bacs">Bacs<span class="n" id="n-bacs"></span></button>
-          <button type="button" role="tab" id="tab-doublons" aria-controls="panel-doublons" aria-selected="false" data-view="doublons">Doublons<span class="n" id="n-doublons"></span></button>
-          <button type="button" role="tab" id="tab-versions" aria-controls="panel-versions" aria-selected="false" data-view="versions">Versions<span class="n" id="n-versions"></span></button>
+    <section id="detail" aria-label="Playlist" hidden>
+      <div class="hero">
+        <div id="hero-cover" class="cover cover-lg" aria-hidden="true"></div>
+        <div class="hero-info">
+          <label class="sr-only" for="pl-name">Nom de la playlist</label>
+          <input id="pl-name" class="pl-name" maxlength="60">
+          <p id="pl-meta" class="pl-meta"></p>
+          <div class="hero-actions">
+            <button type="button" id="clean" class="btn btn-solid"></button>
+            <button type="button" id="recreate" class="btn btn-line">Recréer sur SoundCloud</button>
+          </div>
+          <div class="hero-more">
+            <button type="button" id="split" class="link">Ranger par style</button>
+            <button type="button" id="export" class="link">Exporter en CSV</button>
+            <button type="button" id="delete" class="link danger">Supprimer</button>
+          </div>
         </div>
       </div>
-
-      <div id="panel-bacs" role="tabpanel" aria-labelledby="tab-bacs">
-        <div id="board" class="board"></div>
-      </div>
-      <div id="panel-doublons" role="tabpanel" aria-labelledby="tab-doublons" hidden class="panel"></div>
-      <div id="panel-versions" role="tabpanel" aria-labelledby="tab-versions" hidden class="panel"></div>
-
-      <p class="phase2">Pour recréer tes bacs sur SoundCloud : clique sur « Copier pour SoundCloud », ouvre soundcloud.com connecté à ton compte, puis clique sur le favori « Envoyer à SoundCloud ». Les suggestions de nouveaux sons ne sont pas encore branchées.</p>
+      <div id="notice" class="notice" role="status" hidden></div>
+      <ol id="tracks" class="tracks"></ol>
     </section>
   </main>
 
-  <div id="selbar" class="selbar" hidden>
-    <span id="sel-count"></span>
-    <label class="sr-only" for="sel-target">Bac de destination</label>
-    <select id="sel-target"></select>
-    <button type="button" class="btn btn-go" id="sel-move">Déplacer</button>
-    <button type="button" class="btn btn-ghost" id="sel-new">Nouveau bac</button>
-    <button type="button" class="btn btn-ghost" id="sel-clear">Annuler</button>
+  <div id="homebar" class="selbar" hidden>
+    <span id="homebar-text"></span>
+    <button type="button" class="btn btn-go" id="hb-compare">Comparer</button>
+    <button type="button" class="btn btn-go" id="hb-merge">Fusionner</button>
+    <button type="button" class="btn btn-ghost" id="hb-clear">Annuler</button>
+  </div>
+
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <button type="button" id="sheet-x" class="sheet-x" aria-label="Fermer">×</button>
+      <div id="sheet-body"></div>
+    </div>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

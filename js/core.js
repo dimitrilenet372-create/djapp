@@ -12,6 +12,7 @@ export function makeTrack(p) {
     artist: (p.artist || '').trim(),
     url: p.url || '',
     scid: p.scid || null,
+    art: p.art || '',
     genre: p.genre || '',
     tags: p.tags || [],
     bpm: p.bpm ?? null,
@@ -403,7 +404,7 @@ function fromEntry(e, source) {
   if (!title) return null;
   const genre = e.genre && !/^na$/i.test(e.genre) ? e.genre : '';
   return makeTrack({
-    title, artist, genre, url: e.webpage_url || e.url || '', scid: scidOf(e.id), tags: Array.isArray(e.tags) ? e.tags : [],
+    title, artist, genre, url: e.webpage_url || e.url || '', scid: scidOf(e.id), art: typeof e.art === 'string' ? e.art : '', tags: Array.isArray(e.tags) ? e.tags : [],
     duration: typeof e.duration === 'number' ? e.duration : null, bpm: typeof e.bpm === 'number' ? e.bpm : null, source,
   });
 }
@@ -433,7 +434,7 @@ export function decodeImport(hash) {
     const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
     const p = JSON.parse(decodeURIComponent(escape(bin)));
     if (!p || !Array.isArray(p.tracks)) return null;
-    return { name: String(p.name || 'Playlist SoundCloud').slice(0, 40), tracks: p.tracks };
+    return { name: String(p.name || 'Playlist SoundCloud').slice(0, 60), art: typeof p.art === 'string' ? p.art : '', tracks: p.tracks };
   } catch {
     return null;
   }

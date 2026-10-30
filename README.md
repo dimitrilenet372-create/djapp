@@ -1,6 +1,6 @@
 # Le bac
 
-Une page web pour ranger tes playlists SoundCloud : elle fusionne plusieurs playlists, retire les doublons, relie les versions d'un même titre (original, remix, edit, bootleg) et regroupe tout par style dans des bacs que tu réorganises à la souris.
+Une page web pour nettoyer tes playlists SoundCloud : elle les affiche comme dans une app de musique, retire les doublons, relie les versions d'un même titre (original, remix, edit, bootleg), compare ou fusionne deux playlists, les range par style, puis recrée la version propre sur ton compte.
 
 Tout tourne dans le navigateur, sans serveur : c'est une page statique, faite pour GitHub Pages.
 
@@ -15,28 +15,21 @@ Pour l'essayer en local : `npx serve .` puis ouvre l'adresse affichée. Les modu
 
 ## Utilisation
 
-1. Ajoute tes playlists : avec le favori **Ajouter à Le bac** depuis SoundCloud (voir plus bas), en collant des titres, ou en important un fichier. Le bouton **Essayer avec un exemple** montre le résultat tout de suite. Les playlists ajoutées restent dans ton navigateur ; **Tout effacer** repart de zéro.
-2. Clique sur **Ranger mes playlists**.
-3. Réorganise :
-   - clique sur des titres pour les sélectionner, puis choisis un bac dans la barre du bas ;
-   - ou glisse-les d'un bac à l'autre (ou sur « Nouveau bac ») ;
-   - renomme un bac en cliquant sur son nom.
-4. Onglet **Doublons** : garde un titre retiré par erreur. Onglet **Versions** : réunis un titre et ses remixes dans le même bac.
-5. Exporte en ZIP (une liste par bac, le CSV complet, les doublons retirés) ou en CSV.
+L'écran ressemble à une app de musique : un bouton **Ajouter une playlist**, et dessous tes playlists en pochettes.
 
-## Ajouter une playlist en un clic
+1. **Ajouter.** Le bouton ouvre deux étapes : glisse le favori **Ajouter à Le bac** dans ta barre de favoris (une seule fois), puis ouvre ta playlist sur soundcloud.com et clique dessus. Elle arrive dans l'app avec ses pochettes. Sinon, tu peux coller des titres ou importer un fichier.
+2. **Entrer dans une playlist.** Les doublons sont barrés et marqués. **Retirer N doublons** les enlève d'un clic (le premier exemplaire est gardé), avec un bouton Annuler. Le × retire un titre, le nom se modifie au clic. Les remix, edits et bootlegs d'un même titre sont reliés par un badge : ce ne sont pas des doublons.
+3. **Comparer ou fusionner.** Sur l'accueil, le rond en haut à droite d'une pochette sélectionne une playlist. Avec deux choisies : **Comparer** (en commun, seulement dans l'une, seulement dans l'autre) ou **Fusionner** (une nouvelle playlist sans doublons). Les originales ne changent pas.
+4. **Ranger par style** découpe une playlist en playlists de même style (house, techno, drum & bass…), pratique pour préparer des sets.
+5. **Recréer sur SoundCloud.** Voir ci-dessous. **Exporter en CSV** garde aussi une copie de la liste.
 
-1. Sur la page de l'app, glisse le bouton jaune **Ajouter à Le bac** dans ta barre de favoris (Ctrl+Maj+B pour l'afficher). Si le glisser ne marche pas, clique sur **Copier le code du favori**, crée un favori à la main et colle le code à la place de l'adresse.
-2. Ouvre une playlist (ou un titre) sur soundcloud.com et clique sur le favori.
-3. Un bandeau bleu indique la progression, puis l'app s'ouvre avec la playlist ajoutée. Recommence avec une autre playlist : elle s'ajoute dans le même onglet.
+Les playlists restent dans ton navigateur : rien n'est envoyé à un serveur.
 
-Le favori lit les titres, genres, tags et liens que la page SoundCloud charge déjà, puis les envoie à l'app dans l'adresse (`#import=…`) : rien ne passe par un serveur.
+## Recréer une playlist sur SoundCloud
 
-## Recréer tes bacs sur SoundCloud
-
-1. Glisse aussi le bouton vert **Envoyer à SoundCloud** dans ta barre de favoris.
-2. Range tes playlists dans l'app, puis clique sur **Copier pour SoundCloud** (ou **Envoyer ce bac** dans un bac).
-3. Ouvre soundcloud.com, connecté à ton compte, et clique sur le favori. Il demande confirmation, puis crée une playlist **privée** par bac, au nom du bac, et indique pour chacune le nombre de titres réellement ajoutés.
+1. Dans la playlist, clique sur **Recréer sur SoundCloud** : l'app copie les titres et affiche les étapes.
+2. Une seule fois, glisse le bouton vert **Envoyer à SoundCloud** dans ta barre de favoris.
+3. Ouvre soundcloud.com, connecté à ton compte, et clique sur le favori. Il demande confirmation, puis crée une playlist **privée** au nom de la playlist, et indique le nombre de titres réellement ajoutés.
 
 Le navigateur peut demander l'autorisation de lire le presse-papiers : accepte, ou colle le texte dans la boîte qui s'ouvre. Les titres arrivent par leur identifiant SoundCloud (connu quand la playlist a été ajoutée avec le favori) ou, à défaut, par leur lien ; un titre sans lien est ignoré. SoundCloud limite une playlist à 500 titres : au-delà, elle est découpée en « Nom (1) », « Nom (2) »…
 
@@ -66,7 +59,7 @@ Puis importe `playlist1.json` dans la carte de la playlist.
 
 ## Suite prévue
 
-1. **Découverte** : recherche de titres par genre et plage de BPM via l'API SoundCloud, classés par proximité avec tes bacs.
+1. **Découverte** : recherche de titres par genre et plage de BPM via l'API SoundCloud, classés par proximité avec tes playlists.
 2. **Envoi officiel vers SoundCloud** : remplacer le favori d'envoi par l'API officielle. Il faut un abonnement Artist Pro pour obtenir les identifiants, et probablement une petite fonction serverless gratuite (Cloudflare Workers, par exemple), car une page statique ne peut pas garder un secret d'application.
 3. **Matching DJ** : BPM et tonalité (roue Camelot) pour proposer des enchaînements.
 
@@ -78,7 +71,7 @@ npm test
 ```
 
 - `js/core.js` : lecture des données, doublons, versions, styles, exports (aucune dépendance au navigateur)
-- `js/zip.js` : création du ZIP
+- `js/library.js` : playlists, nettoyage, fusion, comparaison, rangement par style, enregistrement
 - `js/bookmarklet.js` : code des deux favoris (import et envoi vers SoundCloud)
 - `js/app.js` : interface
 - `test/` : tests de la logique et de l'interface (jsdom)

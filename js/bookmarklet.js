@@ -58,6 +58,7 @@ export async function extractor(win, appUrl) {
     const data = await get('resolve', { url: win.location.origin + win.location.pathname });
     let tracks;
     let name;
+    const kind = data.kind;
     if (data.kind === 'playlist' || data.kind === 'system-playlist') {
       tracks = data.tracks || [];
       name = data.title;
@@ -79,8 +80,14 @@ export async function extractor(win, appUrl) {
     const full = tracks.map((t) => (t.title ? t : byId.get(t.id))).filter(Boolean);
 
     const parseTags = (s) => (s ? (s.match(/"[^"]+"|\S+/g) || []).map((x) => x.replace(/"/g, '')) : []);
+    // pochette réduite à son identifiant : l'app recompose l'adresse de l'image
+    const art = (u) => {
+      const m = /^https?:\/\/i1\.sndcdn\.com\/(.+?)-(?:large|original|t\d+x\d+|crop|badge|small|tiny)\.(?:jpg|jpeg|png)/.exec(u || '');
+      return m ? m[1] : '';
+    };
     const out = full.map((t) => ({
       id: t.id,
+      art: art(t.artwork_url) || art(t.user && t.user.avatar_url),
       title: t.title,
       uploader: (t.publisher_metadata && t.publisher_metadata.artist) || (t.user && t.user.username) || '',
       genre: t.genre || '',
@@ -90,7 +97,7 @@ export async function extractor(win, appUrl) {
     }));
     if (!out.length) return fail('aucun titre trouvé (playlist vide ou privée).');
 
-    const json = JSON.stringify({ v: 1, name: name || 'Playlist SoundCloud', tracks: out });
+    const json = JSON.stringify({ v: 1, name: name || 'Playlist SoundCloud', art: kind === 'track' ? '' : art(data.artwork_url), tracks: out });
     const b64 = win
       .btoa(unescape(encodeURIComponent(json)))
       .replace(/\+/g, '-')

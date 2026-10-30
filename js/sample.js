@@ -45,3 +45,9 @@ Kendrick Lamar - Money Trees | Hip-hop & Rap
 Tyler, The Creator - EARFQUAKE | Hip-hop & Rap
 SZA - Good Days | R&B & Soul
 Brent Faiyaz - Dead Man Walking | R&B & Soul`;
+
+// Playlist d'exemple avec quelques doublons glissés dedans, pour montrer le nettoyage.
+export const SAMPLE_A = `${SAMPLE_1}
+Fisher - Losing It (Original Mix) | Tech House
+deadmau5 - Strobe (Free Download) | Progressive House
+Charlotte De Witte - Doppler | Techno`;
