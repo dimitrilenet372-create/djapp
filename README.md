@@ -15,7 +15,7 @@ Pour l'essayer en local : `npx serve .` puis ouvre l'adresse affichée. Les modu
 
 ## Utilisation
 
-1. Colle tes titres dans une carte de playlist, ou importe un fichier. Le bouton **Essayer avec un exemple** montre le résultat tout de suite.
+1. Ajoute tes playlists : avec le favori **Ajouter à Le bac** depuis SoundCloud (voir plus bas), en collant des titres, ou en important un fichier. Le bouton **Essayer avec un exemple** montre le résultat tout de suite. Les playlists ajoutées restent dans ton navigateur ; **Tout effacer** repart de zéro.
 2. Clique sur **Ranger mes playlists**.
 3. Réorganise :
    - clique sur des titres pour les sélectionner, puis choisis un bac dans la barre du bas ;
@@ -23,6 +23,14 @@ Pour l'essayer en local : `npx serve .` puis ouvre l'adresse affichée. Les modu
    - renomme un bac en cliquant sur son nom.
 4. Onglet **Doublons** : garde un titre retiré par erreur. Onglet **Versions** : réunis un titre et ses remixes dans le même bac.
 5. Exporte en ZIP (une liste par bac, le CSV complet, les doublons retirés) ou en CSV.
+
+## Ajouter une playlist en un clic
+
+1. Sur la page de l'app, glisse le bouton jaune **Ajouter à Le bac** dans ta barre de favoris (Ctrl+Maj+B pour l'afficher). Si le glisser ne marche pas, clique sur **Copier le code du favori**, crée un favori à la main et colle le code à la place de l'adresse.
+2. Ouvre une playlist (ou un titre) sur soundcloud.com et clique sur le favori.
+3. Un bandeau bleu indique la progression, puis l'app s'ouvre avec la playlist ajoutée. Recommence avec une autre playlist : elle s'ajoute dans le même onglet.
+
+Le favori lit les titres, genres, tags et liens que la page SoundCloud charge déjà, puis les envoie à l'app dans l'adresse (`#import=…`) : rien ne passe par un serveur.
 
 ## Formats acceptés
 
@@ -42,7 +50,8 @@ Puis importe `playlist1.json` dans la carte de la playlist.
 ## Limites actuelles
 
 - Le style vient du genre renseigné sur SoundCloud, puis des tags et des mots du titre. Sans genre, le rangement est approximatif : déplace les titres à la main ou importe un fichier avec les genres.
-- Les liens de playlist ne sont pas lus directement : un navigateur ne peut pas lire SoundCloud sans passer par leur API.
+- Le favori s'appuie sur le fonctionnement interne du site SoundCloud, pas sur son API officielle : il peut cesser de marcher si SoundCloud change. Les autres méthodes (texte, fichier) restent possibles. Il a été testé contre une simulation de SoundCloud, pas encore sur le vrai site.
+- Un lien de playlist collé dans l'app n'est pas lu : un navigateur ne peut pas interroger SoundCloud depuis une autre page.
 - Pas encore de suggestions de nouveaux sons, de BPM ni de tonalité, ni d'envoi vers SoundCloud.
 
 ## Suite prévue
@@ -60,5 +69,6 @@ npm test
 
 - `js/core.js` : lecture des données, doublons, versions, styles, exports (aucune dépendance au navigateur)
 - `js/zip.js` : création du ZIP
+- `js/bookmarklet.js` : code du favori d'import
 - `js/app.js` : interface
 - `test/` : tests de la logique et de l'interface (jsdom)

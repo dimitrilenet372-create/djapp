@@ -80,6 +80,14 @@ body {
 }
 .chip-x:hover { background: rgba(255, 255, 255, 0.25); }
 
+.bm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-top: 24px; }
+.bm-row p { margin: 0; max-width: 52ch; font-size: 0.9375rem; line-height: 1.35; }
+.bm {
+  display: inline-block; padding: 0.55em 1.3em; border-radius: 999px; cursor: grab;
+  background: var(--t1); color: var(--ink); border: 2px dashed var(--ink);
+  font-weight: 800; text-decoration: none; line-height: 1.1;
+}
+.bm:hover { background: #fff; }
 .deck-actions { display: flex; flex-wrap: wrap; gap: 10px 12px; margin-top: 22px; }
 .settings, .help { margin-top: 18px; font-size: 0.9375rem; }
 .settings summary, .help summary { cursor: pointer; font-weight: 700; width: fit-content; }

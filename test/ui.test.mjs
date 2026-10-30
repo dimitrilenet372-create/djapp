@@ -21,6 +21,9 @@ Object.defineProperty(globalThis, 'navigator', {
 });
 URL.createObjectURL = (b) => { globalThis.__blob = b; return 'blob:test'; };
 URL.revokeObjectURL = () => {};
+// jsdom ne sait pas « naviguer » : on enregistre les téléchargements déclenchés par l'app
+globalThis.__downloads = [];
+window.HTMLAnchorElement.prototype.click = function () { globalThis.__downloads.push(this.download); };
 
 await import('../js/app.js');
 
@@ -136,6 +139,7 @@ test('copie des liens et exports', async () => {
   assert.equal(globalThis.__blob.type, 'application/zip');
   click($('#dl-csv'));
   assert.equal(globalThis.__blob.type, 'text/csv;charset=utf-8');
+  assert.deepEqual(globalThis.__downloads, ['le-bac.zip', 'le-bac.csv']);
 });
 
 test('un titre piégé n\'injecte pas de HTML', () => {
@@ -158,6 +162,60 @@ test('lien de playlist collé : message clair, pas de plantage', () => {
   $('#form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   assert.match($('#toast').textContent, /liens de playlist/);
   assert.equal($('#summary').textContent, before);
+});
+
+const payload = (name, tracks) => '#import=' + Buffer.from(JSON.stringify({ v: 1, name, tracks }), 'utf8').toString('base64url');
+const wait = (ms = 30) => new Promise((r) => setTimeout(r, ms));
+
+test('favori : le bouton embarque l\'adresse de l\'app et ne s\'exécute pas ici', () => {
+  const href = $('#bm-link').getAttribute('href');
+  assert.ok(href.startsWith('javascript:'));
+  assert.ok(decodeURIComponent(href).includes('"http://localhost/"'));
+  click($('#bm-link'));
+  assert.match($('#toast').textContent, /barre de favoris/);
+});
+
+test('import depuis le favori : remplit les cartes vides puis en ajoute', async () => {
+  click($('#clear-all'));
+  assert.equal($$('.source').length, 2);
+  window.location.hash = payload('Chill é', [
+    { title: 'Moi - Un', uploader: 'x', genre: 'Lo-fi', webpage_url: 'https://soundcloud.com/a/un' },
+    { title: 'Deux', uploader: 'Bob', genre: 'House' },
+  ]);
+  await wait();
+  let cards = $$('.source');
+  assert.equal($('.source-name', cards[0]).value, 'Chill é');
+  assert.match(cards[0].textContent, /2 titres/);
+  assert.equal(window.location.hash, '', 'l\'adresse est nettoyée');
+  assert.match($('#toast').textContent, /Chill é : 2 titres ajoutés/);
+
+  window.location.hash = payload('Deep', [{ title: 'Trois', uploader: 'Z', genre: 'Techno' }]);
+  await wait();
+  assert.equal($$('.source').length, 2);
+  assert.match($$('.source')[1].textContent, /1 titres/);
+
+  window.location.hash = payload('Troisième', [{ title: 'Quatre', uploader: 'Y' }]);
+  await wait();
+  assert.equal($$('.source').length, 3, 'une carte est ajoutée quand les autres sont pleines');
+
+  window.location.hash = '#import=@@@';
+  await wait();
+  assert.equal($$('.source').length, 3, 'adresse invalide ignorée');
+  window.location.hash = '';
+
+  click($('#form button[type="submit"]'));
+  $('#form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.match($('#summary').textContent, /4 titres lus/);
+});
+
+test('les playlists ajoutées sont conservées dans le navigateur', () => {
+  const saved = JSON.parse(window.localStorage.getItem('lebac.v1'));
+  assert.equal(saved.sources.length, 3);
+  assert.equal(saved.sources[0].name, 'Chill é');
+  assert.equal(saved.sources[0].files[0].tracks.length, 2);
+  assert.equal(saved.sources[0].files[0].tracks[0].genre, 'Lo-fi');
+  click($('#clear-all'));
+  assert.equal(JSON.parse(window.localStorage.getItem('lebac.v1')).sources.length, 2);
 });
 
 test('aucune erreur JavaScript levée', () => {

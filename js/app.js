@@ -1,6 +1,7 @@
 import * as core from './core.js';
 import { makeZip } from './zip.js';
 import { SAMPLE_1, SAMPLE_2 } from './sample.js';
+import { bookmarkletCode, bookmarkletHref } from './bookmarklet.js';
 
 const PALETTE = 10;
 const $ = (s, r = document) => r.querySelector(s);
@@ -12,8 +13,48 @@ const safeUrl = (u) => (/^https?:\/\//i.test(u || '') ? u : '');
 let uid = 0;
 const newSource = (name, text = '') => ({ id: `s${++uid}`, name, text, files: [] });
 
+// Les playlists ajoutées restent dans le navigateur : on peut en ajouter une, fermer l'onglet, revenir.
+const STORE = 'lebac.v1';
+const packTrack = (t) => ({ title: t.title, artist: t.artist, url: t.url, genre: t.genre, tags: t.tags, duration: t.duration, bpm: t.bpm });
+
+function saveSources() {
+  try {
+    const sources = state.sources.map((s) => ({
+      name: s.name,
+      text: s.text,
+      files: s.files.map((f) => ({ name: f.name, tracks: f.tracks.map(packTrack) })),
+    }));
+    window.localStorage.setItem(STORE, JSON.stringify({ sources }));
+  } catch {
+    /* stockage plein ou refusé : l'app fonctionne quand même */
+  }
+}
+
+function loadSources() {
+  try {
+    const data = JSON.parse(window.localStorage.getItem(STORE));
+    if (!data || !Array.isArray(data.sources) || !data.sources.length) return null;
+    return data.sources.map((s) => {
+      const src = newSource(String(s.name || 'Playlist'), String(s.text || ''));
+      src.files = (s.files || []).map((f) => ({
+        name: f.name,
+        tracks: f.tracks.map((p) => core.makeTrack({ ...p, source: src.name })),
+      }));
+      return src;
+    });
+  } catch {
+    return null;
+  }
+}
+
+let saveTimer;
+const saveSoon = () => {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveSources, 300);
+};
+
 const state = {
-  sources: [newSource('Playlist 1'), newSource('Playlist 2')],
+  sources: loadSources() || [newSource('Playlist 1'), newSource('Playlist 2')],
   result: null,
   selected: new Set(),
   view: 'bacs',
@@ -98,6 +139,7 @@ function renderSources() {
     </section>`,
     )
     .join('');
+  saveSources();
 }
 
 const sourceOf = (el) => state.sources.find((s) => s.id === el.closest('.source')?.dataset.id);
@@ -107,6 +149,7 @@ sourcesEl.addEventListener('input', (e) => {
   if (!s) return;
   if (e.target.matches('.source-name')) s.name = e.target.value;
   else if (e.target.matches('textarea')) s.text = e.target.value;
+  saveSoon();
 });
 
 sourcesEl.addEventListener('click', (e) => {
@@ -132,6 +175,44 @@ sourcesEl.addEventListener('change', async (e) => {
     }
   }
   renderSources();
+});
+
+// ----- ajout en un clic depuis SoundCloud (favori) -----
+const appUrl = () => window.location.origin + window.location.pathname;
+const bmLink = $('#bm-link');
+bmLink.href = bookmarkletHref(appUrl());
+bmLink.addEventListener('click', (e) => {
+  e.preventDefault();
+  toast('Glisse ce bouton dans ta barre de favoris (Ctrl+Maj+B pour l\'afficher).');
+});
+$('#bm-copy').addEventListener('click', () => copyText(bookmarkletCode(appUrl()), 'Code copié : colle-le comme adresse d\'un nouveau favori.'));
+
+function handleImport() {
+  const imp = core.decodeImport(window.location.hash);
+  if (!imp) return;
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  const tracks = core.parseEntries(imp.tracks, imp.name);
+  if (!tracks.length) {
+    toast('Aucun titre dans cette playlist.');
+    return;
+  }
+  let s = state.sources.find((x) => !x.text.trim() && !x.files.length);
+  if (!s) {
+    s = newSource(imp.name);
+    state.sources.push(s);
+  }
+  s.name = imp.name;
+  s.files.push({ name: 'Import SoundCloud', tracks });
+  renderSources();
+  toast(`${imp.name} : ${tracks.length} ${tracks.length > 1 ? 'titres ajoutés' : 'titre ajouté'}.`);
+  $('#sources').scrollIntoView?.({ block: 'nearest' });
+}
+window.addEventListener('hashchange', handleImport);
+
+$('#clear-all').addEventListener('click', () => {
+  state.sources = [newSource('Playlist 1'), newSource('Playlist 2')];
+  renderSources();
+  toast('Playlists effacées.');
 });
 
 $('#add-source').addEventListener('click', () => {
@@ -169,7 +250,7 @@ function run() {
   if (!total) {
     toast(
       playlistLinks
-        ? 'Les liens de playlist ne sont pas lus directement. Colle la liste des titres ou importe un fichier.'
+        ? 'Les liens de playlist ne sont pas lus ici. Ouvre la playlist sur SoundCloud et clique sur le favori « Ajouter à Le bac ».'
         : 'Colle une liste de titres ou importe un fichier.',
     );
     return;
@@ -221,7 +302,7 @@ function renderNotices() {
     );
   }
   if (r.playlistLinks) {
-    out.push('Les liens de playlist collés ont été ignorés : leur lecture directe n\'est pas encore possible. Colle la liste des titres ou importe un fichier.');
+    out.push('Les liens de playlist collés ont été ignorés : ils ne se lisent pas depuis cette page. Ouvre la playlist sur SoundCloud et clique sur le favori « Ajouter à Le bac ».');
   }
   $('#notices').innerHTML = out.map((t) => `<p class="notice">${esc(t)}</p>`).join('');
 }
@@ -592,3 +673,4 @@ $('#dl-csv').addEventListener('click', () => {
 // --------------------------------------------------------------------------- //
 renderSources();
 renderResults();
+handleImport();

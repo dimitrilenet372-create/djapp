@@ -415,6 +415,24 @@ function fromJson(text, source) {
   return items.map((e) => fromEntry(e, source)).filter(Boolean);
 }
 
+/** Titres déjà sous forme d'objets (json yt-dlp, favori SoundCloud). */
+export const parseEntries = (items, source = '') => (items || []).map((e) => fromEntry(e, source)).filter(Boolean);
+
+/** Décode l'adresse `#import=…` envoyée par le favori. Renvoie { name, tracks } ou null. */
+export function decodeImport(hash) {
+  const m = /^#import=([A-Za-z0-9_-]+)$/.exec(hash || '');
+  if (!m) return null;
+  try {
+    const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
+    const p = JSON.parse(decodeURIComponent(escape(bin)));
+    if (!p || !Array.isArray(p.tracks)) return null;
+    return { name: String(p.name || 'Playlist SoundCloud').slice(0, 40), tracks: p.tracks };
+  } catch {
+    return null;
+  }
+}
+
 /** Texte libre, lignes « Artiste - Titre | genre | bpm | lien », CSV ou JSON yt-dlp. */
 export function parseAny(text, source = '') {
   const t = (text || '').replace(/^﻿/, '').trim();
