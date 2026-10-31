@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&display=swap" rel="stylesheet">
-  <meta name="app-version" content="2026-10-31-k">
-  <link rel="stylesheet" href="style.css?v=2026-10-31-k">
+  <meta name="app-version" content="2026-10-31-l">
+  <link rel="stylesheet" href="style.css?v=2026-10-31-l">
 </head>
 <body>
   <header class="top" id="top">
@@ -54,6 +54,7 @@
           <div class="hero-more">
             <button type="button" id="order" class="link">Ordonner pour DJer</button>
             <button type="button" id="split" class="link">Ranger par style</button>
+            <button type="button" id="findkeys" class="link">Trouver les tonalités</button>
             <button type="button" id="getlist" class="link">Titres à récupérer</button>
             <button type="button" id="serato" class="link">Exporter pour Serato</button>
             <button type="button" id="export" class="link">Exporter en CSV</button>
@@ -64,7 +65,7 @@
       <div id="notice" class="notice" role="status" hidden></div>
       <ol id="tracks" class="tracks"></ol>
     </section>
-    <p class="foot">Le bac · version <span id="version"></span><button type="button" class="link sync-foot" data-act="sync-open">Sur mon téléphone</button><span id="stale" hidden> · ta page est en cache, recharge avec Ctrl+F5</span></p>
+    <p class="foot">Le bac · version <span id="version"></span><span class="credit"> · Tonalités : <a href="https://getsongbpm.com" target="_blank" rel="noopener">GetSongBPM.com</a></span><button type="button" class="link sync-foot" data-act="sync-open">Sur mon téléphone</button><span id="stale" hidden> · ta page est en cache, recharge avec Ctrl+F5</span></p>
   </main>
 
   <div id="homebar" class="selbar" hidden>
@@ -105,16 +106,18 @@
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-31-k",
-      "./js/core.js": "./js/core.js?v=2026-10-31-k",
-      "./js/library.js": "./js/library.js?v=2026-10-31-k",
-      "./js/bookmarklet.js": "./js/bookmarklet.js?v=2026-10-31-k",
-      "./js/sample.js": "./js/sample.js?v=2026-10-31-k",
-      "./js/zip.js": "./js/zip.js?v=2026-10-31-k",
-      "./js/serato.js": "./js/serato.js?v=2026-10-31-k"
+      "./js/app.js": "./js/app.js?v=2026-10-31-l",
+      "./js/core.js": "./js/core.js?v=2026-10-31-l",
+      "./js/library.js": "./js/library.js?v=2026-10-31-l",
+      "./js/bookmarklet.js": "./js/bookmarklet.js?v=2026-10-31-l",
+      "./js/sample.js": "./js/sample.js?v=2026-10-31-l",
+      "./js/zip.js": "./js/zip.js?v=2026-10-31-l",
+      "./js/serato.js": "./js/serato.js?v=2026-10-31-l",
+      "./js/sync.js": "./js/sync.js?v=2026-10-31-l",
+      "./js/keys.js": "./js/keys.js?v=2026-10-31-l"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-31-k"></script>
+  <script type="module" src="js/app.js?v=2026-10-31-l"></script>
 </body>
 </html>

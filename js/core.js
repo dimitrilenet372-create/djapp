@@ -17,6 +17,7 @@ export function makeTrack(p) {
     tags: p.tags || [],
     bpm: p.bpm ?? null,
     key: parseKey(p.key) || null,
+    keyAuto: Boolean(p.keyAuto && p.key),
     dl: Boolean(p.dl),
     buy: /^https?:\/\//i.test(p.buy || '') ? p.buy : '',
     duration: p.duration ?? null,

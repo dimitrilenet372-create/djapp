@@ -2,10 +2,11 @@ import * as core from './core.js';
 import * as L from './library.js';
 import { SAMPLE_A, SAMPLE_2 } from './sample.js';
 import * as SY from './sync.js';
+import * as KY from './keys.js';
 import * as SE from './serato.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
-const VERSION = '2026-10-31-k';
+const VERSION = '2026-10-31-l';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -235,7 +236,7 @@ function tuneHtml(t) {
   const n = t.key ? parseInt(t.key, 10) : 0;
   const hue = ((n - 1) * 30 + (t.key && t.key.endsWith('B') ? 0 : 0)) % 360;
   const key = t.key
-    ? `<span class="tune-key" style="--k:${hue}" data-b="${t.key.endsWith('B') ? 1 : 0}">${esc(t.key)}</span>`
+    ? `<span class="tune-key" style="--k:${hue}" data-b="${t.key.endsWith('B') ? 1 : 0}"${t.keyAuto ? ' data-auto="1" title="Trouvée dans la base GetSongBPM : à vérifier à l\'oreille"' : ''}>${esc(t.key)}</span>`
     : '<span class="tune-add">+ clé</span>';
   const bpm = t.bpm ? `<span class="tune-bpm">${Math.round(t.bpm)}</span>` : '';
   return `<button type="button" class="tune" data-act="tune" aria-label="Tonalité et tempo de ${esc(t.title)}${t.key ? ` : ${esc(t.key)}` : ''}" title="Tonalité et tempo">${key}${bpm}</button>`;
@@ -321,6 +322,9 @@ function renderDetail() {
   $('#split').disabled = pl.tracks.length < 2;
   $('#export').disabled = pl.tracks.length === 0;
   $('#serato').disabled = pl.tracks.length === 0;
+  const nKey = needsKey(pl).length;
+  $('#findkeys').disabled = pl.tracks.length === 0;
+  $('#findkeys').textContent = nKey ? `Trouver les tonalités (${nKey})` : 'Tonalités trouvées ✓';
   const nGet = gettable(pl).length;
   $('#getlist').hidden = nGet === 0;
   $('#getlist').textContent = `Titres à récupérer (${nGet})`;
@@ -562,6 +566,116 @@ function tuneSheet(pl, t) {
       <div class="paste-foot"><button type="submit" class="btn btn-small btn-solid">Enregistrer</button></div>
     </form>`);
   $('#tune-key').focus();
+}
+
+
+// --------------------------------------------------------------------------- //
+// Recherche automatique des tonalités (GetSongBPM)
+// --------------------------------------------------------------------------- //
+const GSB_KEY = 'lebac.gsb';
+const GSB_CACHE = 'lebac.keycache';
+const readJson = (k, d) => {
+  try {
+    return JSON.parse(window.localStorage.getItem(k)) ?? d;
+  } catch {
+    return d;
+  }
+};
+const writeStore = (k, v) => {
+  try {
+    window.localStorage.setItem(k, JSON.stringify(v));
+  } catch {
+    /* sans stockage, la clé est redemandée à la prochaine visite */
+  }
+};
+const keyRun = { pl: null, running: false, cancel: false, done: 0, total: 0, last: '' };
+const needsKey = (pl) => pl.tracks.filter((t) => !t.key);
+
+function keysSheet(pl, message = '') {
+  const apiKey = readJson(GSB_KEY, '');
+  const todo = needsKey(pl);
+  if (!apiKey) {
+    openSheet(`<div id="keys-box"><h2 id="sheet-title">Trouver les tonalités automatiquement</h2>
+      <p>L'app cherche chaque titre dans <a href="https://getsongbpm.com" target="_blank" rel="noopener">GetSongBPM</a>, une base gratuite de tonalités et de tempos, et remplit les cases (8A, 9B…). Ça marche pour les morceaux connus ; les remixes sont ignorés, car leur tonalité peut différer de l'original.</p>
+      <ol class="steps">
+        <li><b>Une seule fois :</b> demande une clé gratuite sur <a href="https://getsongbpm.com/api" target="_blank" rel="noopener"><b>getsongbpm.com/api</b></a> (formulaire, elle arrive par e-mail).</li>
+        <li>Colle-la ici.
+          <form id="gsb-form" class="paste" autocomplete="off">
+            <label class="sr-only" for="gsb-key">Clé GetSongBPM</label>
+            <input id="gsb-key" type="password" placeholder="Ta clé" autocapitalize="off" spellcheck="false">
+            <div class="paste-foot"><button type="submit" class="btn btn-small btn-solid">Enregistrer la clé</button></div>
+          </form></li>
+      </ol>${message ? `<p class="warn">${esc(message)}</p>` : ''}</div>`);
+    return;
+  }
+  const running = keyRun.running && keyRun.pl === pl.id;
+  openSheet(`<div id="keys-box"><h2 id="sheet-title">Trouver les tonalités</h2>
+    ${message ? `<p class="warn">${esc(message)}</p>` : ''}
+    ${
+      running
+        ? `<p id="keys-progress" role="status">Recherche : ${keyRun.done} sur ${keyRun.total}…<br><small>${esc(keyRun.last)}</small></p>
+           <div class="paste-foot"><button type="button" class="btn btn-small btn-line" data-act="keys-stop">Arrêter</button></div>`
+        : todo.length
+          ? `<p><b>${plural(todo.length, 'titre sans tonalité', 'titres sans tonalité')}</b> dans « ${esc(pl.name)} ». Ceux que tu as déjà renseignés ne sont pas touchés.</p>
+             <div class="paste-foot"><button type="button" class="btn btn-small btn-solid" data-act="keys-go" data-id="${pl.id}">Lancer la recherche</button></div>`
+          : '<p class="ok">✓ Tous les titres ont déjà une tonalité.</p>'
+    }
+    <p class="hint">Les tonalités trouvées ont une bordure en pointillés : écoute avant de t'y fier. Données : <a href="https://getsongbpm.com" target="_blank" rel="noopener">GetSongBPM.com</a>.</p>
+    <div class="sheet-foot"><button type="button" class="link" data-act="keys-change">Changer de clé</button></div></div>`);
+}
+
+async function runKeys(pl) {
+  const apiKey = readJson(GSB_KEY, '');
+  if (!apiKey || keyRun.running) return;
+  const cache = readJson(GSB_CACHE, {});
+  const todo = needsKey(pl);
+  Object.assign(keyRun, { pl: pl.id, running: true, cancel: false, done: 0, total: todo.length, last: '' });
+  const found = new Map();
+  const stats = { found: 0, none: 0, skipped: 0 };
+  let fatal = '';
+  const bySig = new Map();
+  keysSheet(pl);
+  for (const t of todo) {
+    if (keyRun.cancel) break;
+    keyRun.last = core.labelOf(t);
+    const sig = t.sig;
+    let r = bySig.get(sig) || cache[sig];
+    if (r === undefined || r === null) {
+      try {
+        r = await KY.lookupTrack((u) => fetch(u), apiKey, t);
+      } catch (e) {
+        if (e.fatal) {
+          fatal = e.message;
+          break;
+        }
+        r = { key: null, bpm: null, status: 'none' };
+      }
+      if (r.status !== 'skipped') cache[sig] = r.status === 'found' ? { key: r.key, bpm: r.bpm } : 0;
+      await new Promise((ok) => setTimeout(ok, 350)); // GetSongBPM limite le nombre de demandes par heure
+    }
+    if (r === 0) r = { key: null, bpm: null, status: 'none' };
+    else if (!r.status) r = { ...r, status: 'found' };
+    bySig.set(sig, r);
+    stats[r.status] += 1;
+    if (r.status === 'found') found.set(t.id, r);
+    keyRun.done += 1;
+    const el = $('#keys-progress');
+    if (el) el.innerHTML = `Recherche : ${keyRun.done} sur ${keyRun.total}…<br><small>${esc(keyRun.last)}</small>`;
+  }
+  keyRun.running = false;
+  writeStore(GSB_CACHE, cache);
+  if (state.id !== pl.id || !state.lib.includes(pl)) return;
+  const updated = pl.tracks.map((x) => {
+    const r = found.get(x.id);
+    if (!r || x.key) return x;
+    return { ...x, key: r.key || x.key, keyAuto: Boolean(r.key), bpm: x.bpm || r.bpm };
+  });
+  if (found.size) {
+    closeSheet();
+    mutate(pl, updated, `${plural(stats.found, 'tonalité trouvée', 'tonalités trouvées')} sur ${keyRun.done}${stats.none ? `, ${plural(stats.none, 'titre introuvable', 'titres introuvables')}` : ''}${stats.skipped ? `, ${plural(stats.skipped, 'remix ignoré', 'remix ignorés')}` : ''}${fatal ? `. Arrêtée : ${fatal}` : keyRun.cancel ? '. Arrêtée.' : '.'} Les cases en pointillés viennent de GetSongBPM : à vérifier à l'oreille.`);
+  } else {
+    keysSheet(pl, fatal || (keyRun.cancel ? 'Recherche arrêtée.' : `Aucune tonalité trouvée (${plural(stats.none, 'titre introuvable', 'titres introuvables')}${stats.skipped ? `, ${plural(stats.skipped, 'remix ignoré', 'remix ignorés')}` : ''}). Les morceaux très récents ou peu connus manquent souvent dans la base : saisis-les à la main avec « + clé ».`));
+  }
 }
 
 function compareSheet(a, b) {
@@ -1051,6 +1165,10 @@ $('#recreate').addEventListener('click', () => {
   const pl = current();
   if (pl) pushSheet(pl);
 });
+$('#findkeys').addEventListener('click', () => {
+  const pl = current();
+  if (pl) keysSheet(pl);
+});
 $('#getlist').addEventListener('click', () => {
   const pl = current();
   if (pl) getSheet(pl);
@@ -1170,7 +1288,19 @@ $('#sheet-body').addEventListener('click', async (e) => {
   if (act === 'copy-bm') toast((await copyText(bookmarkletCode(appUrl()))) ? "Code copié : colle-le comme adresse d'un nouveau favori." : 'Copie impossible.');
   else if (act === 'copy-bm2') toast((await copyText(pusherCode())) ? "Code copié : colle-le comme adresse d'un nouveau favori." : 'Copie impossible.');
   else if (act === 'sample') loadSample();
-  else if (act === 'se-pick') $('#se-dir')?.click();
+  else if (act === 'keys-go') {
+    const pl = state.lib.find((p) => p.id === btn.dataset.id);
+    if (pl) await runKeys(pl);
+  } else if (act === 'keys-stop') keyRun.cancel = true;
+  else if (act === 'keys-change') {
+    writeStore(GSB_KEY, '');
+    const pl = current();
+    if (pl) keysSheet(pl);
+  } else if (act === 'copy-get') {
+    const pl = state.lib.find((p) => p.id === btn.dataset.id);
+    const links = pl ? gettable(pl).map((t) => (t.dl && safeUrl(t.url)) || t.buy).filter(Boolean).join('\n') : '';
+    toast(links && (await copyText(links)) ? 'Liens copiés.' : 'Copie impossible.');
+  } else if (act === 'se-pick') $('#se-dir')?.click();
   else if (act === 'se-crate') seratoDownload('crate');
   else if (act === 'se-m3u') seratoDownload('m3u');
   else if (act === 'sync-copy') toast((await copyText($('#sync-link').value)) ? 'Lien copié. Ouvre-le sur ton téléphone.' : 'Copie impossible : sélectionne le lien et copie-le.');
@@ -1223,6 +1353,15 @@ $('#sheet-body').addEventListener('input', (e) => {
   renderSerato();
 });
 $('#sheet-body').addEventListener('submit', async (e) => {
+  if (e.target.id === 'gsb-form') {
+    e.preventDefault();
+    const k = $('#gsb-key').value.trim();
+    const pl = current();
+    if (!/^[\w-]{8,}$/.test(k)) return pl && keysSheet(pl, "Cette clé n'a pas la bonne forme. Copie-la en entier depuis l'e-mail de GetSongBPM.");
+    writeStore(GSB_KEY, k);
+    if (pl) keysSheet(pl);
+    return;
+  }
   if (e.target.id === 'tune-form') {
     e.preventDefault();
     const f = e.target;
@@ -1245,7 +1384,7 @@ $('#sheet-body').addEventListener('submit', async (e) => {
       return;
     }
     closeSheet();
-    mutate(pl, pl.tracks.map((x) => (x === t ? { ...x, key, bpm } : x)), `${t.title} : ${[key, bpm && `${Math.round(bpm)} BPM`].filter(Boolean).join(' · ') || 'tonalité et tempo effacés'}.`, false);
+    mutate(pl, pl.tracks.map((x) => (x === t ? { ...x, key, keyAuto: false, bpm } : x)), `${t.title} : ${[key, bpm && `${Math.round(bpm)} BPM`].filter(Boolean).join(' · ') || 'tonalité et tempo effacés'}.`, false);
     return;
   }
   if (e.target.id === 'sync-form') {
