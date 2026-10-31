@@ -2,9 +2,10 @@ import * as core from './core.js';
 import * as L from './library.js';
 import { SAMPLE_A, SAMPLE_2 } from './sample.js';
 import * as SY from './sync.js';
+import * as SE from './serato.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
-const VERSION = '2026-10-31-i';
+const VERSION = '2026-10-31-j';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -289,6 +290,7 @@ function renderDetail() {
   $('#recreate').disabled = pl.tracks.length === 0;
   $('#split').disabled = pl.tracks.length < 2;
   $('#export').disabled = pl.tracks.length === 0;
+  $('#serato').disabled = pl.tracks.length === 0;
   const trans = pl.dj ? L.transitionsOf(pl.tracks) : [];
   const weak = trans.filter((x) => x.tone === 'weak').length;
   $('#pl-meta').textContent = metaOf(pl) + (pl.dj ? (weak ? ` · ${plural(weak, 'enchaînement à préparer', 'enchaînements à préparer')}` : ' · set sans saut difficile') : '');
@@ -413,6 +415,105 @@ async function pushSheet(pl) {
     </ol>
     <details${done ? '' : ' open'}><summary>Le texte copié</summary><textarea class="copied" readonly aria-label="Texte à copier">${esc(out.text)}</textarea></details>
     <div class="sheet-foot"><button type="button" class="link" data-act="copy-push" data-id="${pl.id}">Copier à nouveau</button></div>`);
+}
+
+// --------------------------------------------------------------------------- //
+// Export vers Serato DJ : les fichiers audio de l'ordinateur, rangés dans une crate
+// --------------------------------------------------------------------------- //
+const SERATO_STORE = 'lebac.serato';
+const serato = { files: [], folder: '', base: '', plId: null };
+try {
+  serato.base = window.localStorage.getItem(SERATO_STORE) || '';
+} catch {
+  /* ignore */
+}
+
+/** Dossier où Serato range ses crates, d'après le chemin de la musique. */
+function subcratesDir(base) {
+  const b = String(base || '').trim();
+  let m = /^c:\\users\\([^\\]+)/i.exec(b);
+  if (m) return `C:\\Users\\${m[1]}\\Music\\_Serato_\\Subcrates`;
+  if (/^c:/i.test(b)) return 'C:\\Users\\(ton nom)\\Music\\_Serato_\\Subcrates';
+  m = /^([a-z]):/i.exec(b);
+  if (m) return `${m[1].toUpperCase()}:\\_Serato_\\Subcrates`;
+  m = /^\/Volumes\/([^/]+)/.exec(b);
+  if (m) return `/Volumes/${m[1]}/_Serato_/Subcrates`;
+  m = /^\/Users\/([^/]+)/.exec(b);
+  if (m) return `/Users/${m[1]}/Music/_Serato_/Subcrates`;
+  return '';
+}
+
+const seratoTracks = (pl) => {
+  const dups = dupsOf(pl);
+  return pl.tracks.filter((t) => !dups.has(t.id));
+};
+
+function seratoResult(pl) {
+  if (!serato.files.length) return '';
+  const tracks = seratoTracks(pl);
+  const r = SE.matchFiles(tracks, serato.files);
+  const base = serato.base.trim();
+  const last = base.split(/[\\/]/).filter(Boolean).pop() || '';
+  const dir = subcratesDir(base);
+  const miss = r.missing
+    .map(
+      (t) =>
+        `<li><span>${esc(core.labelOf(t))}</span> ${SE.whereToGet(t)
+          .map((l) => `<a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`)
+          .join(' · ')}</li>`,
+    )
+    .join('');
+  const found = r.found.map((f) => `<li>${esc(core.labelOf(f.track))} <small>→ ${esc(f.file.split('/').pop())}</small></li>`).join('');
+  return `<div class="stats">
+      <div class="stat"><b>${r.found.length}</b><span>${r.found.length > 1 ? 'trouvés' : 'trouvé'} sur ton ordi</span></div>
+      <div class="stat"><b>${r.missing.length}</b><span>à récupérer</span></div>
+    </div>
+    ${
+      !r.found.length
+        ? '<p class="warn">Aucun fichier ne correspond. Vérifie le dossier choisi : les fichiers doivent être nommés « Artiste - Titre ».</p>'
+        : !base
+          ? '<p class="warn">Colle le chemin du dossier (étape 2) pour télécharger la crate.</p>'
+          : `${last && last.toLowerCase() !== serato.folder.toLowerCase() ? `<p class="warn">Le chemin finit par « ${esc(last)} » mais le dossier choisi s'appelle « ${esc(serato.folder)} ». Vérifie qu'il s'agit du même.</p>` : ''}
+      <div class="sheet-foot"><button type="button" class="btn btn-solid" data-act="se-crate">Télécharger la crate Serato</button><button type="button" class="link" data-act="se-m3u">ou en M3U (Rekordbox, Traktor, VirtualDJ)</button></div>
+      <p class="hint">Range le fichier .crate dans <code class="path">${esc(dir || '_Serato_\\Subcrates')}</code>, puis relance Serato : la crate « ${esc(SE.crateName(pl.name))} » apparaît dans la colonne de gauche, dans l'ordre de la playlist.</p>`
+    }
+    ${miss ? `<details open><summary>${plural(r.missing.length, 'titre à récupérer', 'titres à récupérer')}</summary><ul class="se-list">${miss}</ul><p class="hint">Sur SoundCloud, le bouton de téléchargement n'existe que si l'artiste l'autorise. Une fois les fichiers dans ton dossier, choisis-le à nouveau.</p></details>` : ''}
+    ${found ? `<details><summary>Titres trouvés</summary><ul class="se-list">${found}</ul></details>` : ''}`;
+}
+
+function renderSerato() {
+  const pl = state.lib.find((p) => p.id === serato.plId);
+  const box = $('#se-result');
+  if (pl && box) box.innerHTML = seratoResult(pl);
+}
+
+function seratoSheet(pl) {
+  serato.plId = pl.id;
+  const canPick = 'webkitdirectory' in document.createElement('input');
+  const n = seratoTracks(pl).length;
+  openSheet(`<div id="serato-box"><h2 id="sheet-title">Mettre « ${esc(pl.name)} » dans Serato DJ</h2>
+    <p>Sans l'abonnement SoundCloud qui donne accès à Serato, Serato ne joue que les fichiers de ton ordinateur. L'app retrouve ceux de la playlist (${plural(n, 'titre', 'titres')}, doublons exclus) dans ton dossier de musique et te donne une crate prête à ouvrir.</p>
+    ${canPick ? '' : '<p class="warn">Ce navigateur ne permet pas de choisir un dossier : ouvre l\'app sur ton ordinateur, avec Chrome ou Edge.</p>'}
+    <ol class="steps">
+      <li><b>Choisis ton dossier de musique.</b> Rien n'est envoyé : l'app lit seulement les noms des fichiers.<br>
+        <button type="button" class="btn btn-line" data-act="se-pick"${canPick ? '' : ' disabled'}>${serato.folder ? `Dossier : ${esc(serato.folder)} · changer` : 'Choisir le dossier'}</button>
+        <input type="file" id="se-dir" webkitdirectory multiple hidden></li>
+      <li><b>Colle son chemin complet.</b> Le navigateur ne le connaît pas, et Serato en a besoin.
+        <div class="paste"><input id="se-base" spellcheck="false" autocomplete="off" placeholder="C:\\Users\\Dimitri\\Music" value="${esc(serato.base)}" aria-label="Chemin du dossier de musique"></div>
+        <p class="hint">Dans l'Explorateur Windows, ouvre le dossier, clique dans la barre d'adresse et copie (Ctrl+C). Sur Mac : clic droit sur le dossier, touche Option, « Copier … comme nom de chemin ».</p></li>
+    </ol>
+    <div id="se-result">${seratoResult(pl)}</div></div>`);
+}
+
+function seratoDownload(kind) {
+  const pl = state.lib.find((p) => p.id === serato.plId);
+  if (!pl || !serato.base.trim()) return;
+  const r = SE.matchFiles(seratoTracks(pl), serato.files);
+  const found = r.found.map((f) => ({ ...f, path: SE.absolutePath(serato.base, f.file) }));
+  const name = SE.crateName(pl.name);
+  if (kind === 'crate') download(`${name}.crate`, SE.makeCrate(found.map((f) => f.path)), 'application/octet-stream');
+  else download(`${name}.m3u8`, SE.makeM3u(found), 'audio/x-mpegurl;charset=utf-8');
+  toast(`${plural(found.length, 'titre', 'titres')} dans « ${name} ».`);
 }
 
 function compareSheet(a, b) {
@@ -921,6 +1022,10 @@ $('#split').addEventListener('click', () => {
   setView('home');
   toast(`${plural(parts.length, 'playlist créée', 'playlists créées')} par style, à partir de « ${pl.name} ».`, 4500);
 });
+$('#serato').addEventListener('click', () => {
+  const pl = current();
+  if (pl) seratoSheet(pl);
+});
 $('#export').addEventListener('click', () => {
   const pl = current();
   if (pl) download(`${pl.name.replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '_') || 'playlist'}.csv`, core.tracksToCsv([pl]), 'text/csv;charset=utf-8');
@@ -1006,6 +1111,9 @@ $('#sheet-body').addEventListener('click', async (e) => {
   if (act === 'copy-bm') toast((await copyText(bookmarkletCode(appUrl()))) ? "Code copié : colle-le comme adresse d'un nouveau favori." : 'Copie impossible.');
   else if (act === 'copy-bm2') toast((await copyText(pusherCode())) ? "Code copié : colle-le comme adresse d'un nouveau favori." : 'Copie impossible.');
   else if (act === 'sample') loadSample();
+  else if (act === 'se-pick') $('#se-dir')?.click();
+  else if (act === 'se-crate') seratoDownload('crate');
+  else if (act === 'se-m3u') seratoDownload('m3u');
   else if (act === 'sync-copy') toast((await copyText($('#sync-link').value)) ? 'Lien copié. Ouvre-le sur ton téléphone.' : 'Copie impossible : sélectionne le lien et copie-le.');
   else if (act === 'sync-share') {
     try {
@@ -1035,6 +1143,25 @@ $('#sheet-body').addEventListener('click', async (e) => {
     closeSheet();
     playIndex(player.i + 1);
   }
+});
+$('#sheet-body').addEventListener('change', (e) => {
+  if (e.target.id !== 'se-dir') return;
+  const files = [...(e.target.files || [])];
+  serato.files = files.map((f) => f.webkitRelativePath || f.name);
+  serato.folder = (serato.files[0] || '').split('/')[0] || '';
+  const btn = $('[data-act="se-pick"]');
+  if (btn) btn.textContent = serato.folder ? `Dossier : ${serato.folder} · changer` : 'Choisir le dossier';
+  renderSerato();
+});
+$('#sheet-body').addEventListener('input', (e) => {
+  if (e.target.id !== 'se-base') return;
+  serato.base = e.target.value;
+  try {
+    window.localStorage.setItem(SERATO_STORE, serato.base.trim());
+  } catch {
+    /* ignore */
+  }
+  renderSerato();
 });
 $('#sheet-body').addEventListener('submit', async (e) => {
   if (e.target.id === 'sync-form') {

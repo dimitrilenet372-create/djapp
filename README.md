@@ -64,6 +64,16 @@ Le navigateur peut demander l'autorisation de lire le presse-papiers : accepte, 
 
 Ce favori utilise la session ouverte sur soundcloud.com et le fonctionnement interne du site, pas l'API officielle. Il n'a été testé que contre une simulation de SoundCloud : si le nombre de titres annoncé est inférieur à ce qui est attendu, ou si une erreur s'affiche, note le message.
 
+## Exporter vers Serato DJ
+
+Serato lit SoundCloud seulement avec l'abonnement SoundCloud Go+. Sans lui, Serato joue les fichiers audio de l'ordinateur : **Exporter pour Serato** (dans une playlist ou un set) les retrouve et prépare une crate.
+
+1. **Choisir le dossier** de musique. Rien n'est envoyé : l'app lit seulement les noms des fichiers (`Artiste - Titre.mp3`, sous-dossiers compris).
+2. **Coller son chemin complet** (`C:\Users\Moi\Music`), que le navigateur ne connaît pas. Il est retenu pour la fois suivante.
+3. **Télécharger la crate Serato** et ranger le fichier `.crate` dans le dossier indiqué (`…\Music\_Serato_\Subcrates` ; pour un autre disque, `D:\_Serato_\Subcrates`), puis relancer Serato. La crate garde l'ordre de la playlist. **ou en M3U** sert pour Rekordbox, Traktor, VirtualDJ ou djay.
+
+Les titres sans fichier sont listés avec des liens pour les récupérer (SoundCloud si l'artiste autorise le téléchargement, Beatport, Bandcamp). Un remix ne prend pas le fichier de l'original. La crate suit le format lu par Serato (vérifié avec la bibliothèque serato-tools), pas encore testée dans Serato lui-même.
+
 ## Formats acceptés
 
 - **Texte** : un titre par ligne, `Artiste - Titre`. Champs facultatifs séparés par `|` : genre, BPM, lien SoundCloud.
@@ -102,5 +112,6 @@ npm test
 - `js/core.js` : lecture des données, doublons, versions, styles, exports (aucune dépendance au navigateur)
 - `js/library.js` : playlists, nettoyage, fusion, comparaison, rangement par style, versions et enchaînements, enregistrement
 - `js/bookmarklet.js` : code des deux favoris (import et envoi vers SoundCloud)
+- `js/serato.js` : fichiers audio retrouvés, crate Serato et M3U
 - `js/app.js` : interface
 - `test/` : tests de la logique et de l'interface (jsdom)

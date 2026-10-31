@@ -47,6 +47,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const click = (el) => el.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
 const type = (el, value) => { el.value = value; el.dispatchEvent(new window.Event('input', { bubbles: true })); };
+const blobBytes = (b) => new Promise((r) => { const fr = new window.FileReader(); fr.onload = () => r(new Uint8Array(fr.result)); fr.readAsArrayBuffer(b); });
 const wait = (ms = 20) => new Promise((r) => setTimeout(r, ms));
 const cards = () => $$('.card');
 const rows = () => $$('.trk');
@@ -63,7 +64,7 @@ test('la version est affichée et cohérente avec la page', () => {
   const idx = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const v = $('#version').textContent;
   assert.ok(idx.includes(`js/app.js?v=${v}`) && idx.includes(`style.css?v=${v}`), 'adresses des scripts versionnées');
-  for (const m of ['app', 'core', 'library', 'bookmarklet', 'sample']) assert.ok(idx.includes(`"./js/${m}.js": "./js/${m}.js?v=${v}"`), m);
+  for (const m of ['app', 'core', 'library', 'bookmarklet', 'sample', 'serato']) assert.ok(idx.includes(`"./js/${m}.js": "./js/${m}.js?v=${v}"`), m);
 });
 
 test('au départ : un seul bouton, aucune playlist, un exemple proposé', () => {
@@ -487,6 +488,54 @@ test('un titre piégé n\'injecte pas de HTML', async () => {
   assert.equal($('#tracks img[src="x"]'), null);
   assert.equal($('#tracks b'), null);
   assert.ok($('#tracks').textContent.includes('<img src=x'));
+  click($('#back'));
+});
+
+test('exporter pour Serato : dossier choisi, chemin collé, crate et titres manquants', async () => {
+  click($('#add'));
+  type($('#paste-text'), 'Daft Punk - One More Time | House | https://soundcloud.com/daftpunk/omt\nDaft Punk - One More Time\nKerri Chandler - Rain\nSolomun - Ocean Drive | | https://soundcloud.com/solomun/ocean');
+  type($('#paste-name'), 'Pour Serato');
+  $('#paste-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await wait();
+  open(names().indexOf('Pour Serato'));
+  click($('#serato'));
+  assert.equal(sheetOpen(), true);
+  assert.match($('#sheet-title').textContent, /Pour Serato.*Serato DJ/);
+  assert.match($('#serato-box').textContent, /3 titres, doublons exclus/);
+  assert.equal($('#se-result').textContent.trim(), '');
+  const input = $('#se-dir');
+  Object.defineProperty(input, 'files', {
+    value: ['Daft Punk - One More Time.mp3', 'House/Kerri Chandler - Rain.flac', 'pochette.jpg'].map((f) => ({ name: f.split('/').pop(), webkitRelativePath: `Music/${f}` })),
+    configurable: true,
+  });
+  input.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.match($('[data-act="se-pick"]').textContent, /Dossier : Music/);
+  assert.deepEqual($$('.stat b').map((b) => b.textContent), ['2', '1']);
+  assert.match($('#se-result .warn').textContent, /Colle le chemin/);
+  assert.equal($('[data-act="se-crate"]'), null);
+  const miss = $('.se-list li');
+  assert.match(miss.textContent, /Solomun - Ocean Drive/);
+  assert.ok($$('a', miss).some((a) => a.href === 'https://soundcloud.com/solomun/ocean'));
+  assert.ok($$('a', miss).some((a) => a.href.startsWith('https://www.beatport.com/search?q=Solomun')));
+
+  type($('#se-base'), 'C:\\Users\\Dimitri\\Music');
+  assert.equal(window.localStorage.getItem('lebac.serato'), 'C:\\Users\\Dimitri\\Music');
+  assert.match($('#se-result .hint').textContent, /C:\\Users\\Dimitri\\Music\\_Serato_\\Subcrates/);
+  globalThis.__downloads = [];
+  click($('[data-act="se-crate"]'));
+  assert.deepEqual(globalThis.__downloads, ['Pour Serato.crate']);
+  const { readCrate } = await import('../js/serato.js');
+  const crate = readCrate(await blobBytes(globalThis.__blob));
+  assert.equal(crate.version, '1.0/Serato ScratchLive Crate');
+  assert.deepEqual(crate.paths, ['Users/Dimitri/Music/Daft Punk - One More Time.mp3', 'Users/Dimitri/Music/House/Kerri Chandler - Rain.flac']);
+  click($('[data-act="se-m3u"]'));
+  assert.equal(globalThis.__downloads[1], 'Pour Serato.m3u8');
+  assert.match(new TextDecoder().decode(await blobBytes(globalThis.__blob)), /^#EXTM3U\r\n#EXTINF:-1,Daft Punk - One More Time\r\nC:\\Users\\Dimitri\\Music\\Daft Punk - One More Time\.mp3/);
+
+  type($('#se-base'), 'D:\\DJ\\Sons');
+  assert.match($('#se-result .warn').textContent, /finit par « Sons »/);
+  assert.match($('#se-result .hint').textContent, /D:\\_Serato_\\Subcrates/);
+  click($('#sheet-x'));
   click($('#back'));
 });
 
