@@ -216,3 +216,21 @@ test('la tonalité vient du champ SoundCloud, des tags ou de la description, et 
   assert.equal(line.key, '8A');
   assert.equal(line.bpm, 124);
 });
+
+// --- titres téléchargeables ou à acheter ---
+test('les titres que l\'artiste laisse récupérer sont repérés', async () => {
+  const { parseEntries, dedupe, makeTrack } = await import('../js/core.js');
+  const [a, b, c] = parseEntries([
+    { id: 1, title: 'Aa - Gratuit', dl: 1 },
+    { id: 2, title: 'Bb - Achat', buy: 'https://shop.example/b' },
+    { id: 3, title: 'Cc - Rien', buy: 'javascript:alert(1)' },
+  ]);
+  assert.equal(a.dl, true);
+  assert.equal(b.buy, 'https://shop.example/b');
+  assert.equal(c.buy, '', 'seule une adresse web est gardée');
+  assert.equal(c.dl, false);
+  const { kept } = dedupe([makeTrack({ artist: 'X', title: 'Y' }), makeTrack({ artist: 'X', title: 'Y', dl: true, buy: 'https://s.example/y' })]);
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].dl, true, 'le doublon apporte son téléchargement');
+  assert.equal(kept[0].buy, 'https://s.example/y');
+});

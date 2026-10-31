@@ -186,6 +186,14 @@ main { max-width: 1240px; margin: 0 auto; padding: clamp(24px, 4vw, 44px) var(--
 .tune-key[data-b="1"] { background: hsl(var(--k) 90% 86%); }
 .tune-bpm { font-variant-numeric: tabular-nums; }
 .tune-bpm::after { content: ' BPM'; font-weight: 700; opacity: 0.7; }
+.trk-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.trk-meta .tune { margin-top: 0; }
+.get { padding: 0 7px; border-radius: 999px; font-size: 0.6875rem; font-weight: 800; line-height: 1.6; justify-self: start; border: 1.5px solid var(--line); color: var(--muted); }
+.get.is-free { border-color: #2fa66a; color: #17683f; }
+.get-list { margin: 10px 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.get-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.get-name { font-weight: 700; overflow-wrap: anywhere; }
+.get-links a { font-weight: 700; }
 .tune-for { margin: 0 0 8px; color: var(--muted); }
 #tune-form label { display: block; margin-top: 6px; }
 #tune-form label small { color: var(--muted); font-weight: 400; }

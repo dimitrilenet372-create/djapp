@@ -399,3 +399,32 @@ test('page « Sons similaires » : lit les titres proposés pour le titre', asyn
   assert.deepEqual(imp.tracks.map((t) => t.id), [61, 62]);
   assert.equal(imp.art, '');
 });
+
+test('le favori transmet tonalité, tempo, téléchargement et achat quand SoundCloud les donne', async () => {
+  const { win } = fakeWin({
+    hydration: [{ hydratable: 'apiClient', data: { id: 'CID123' } }],
+    responses: (path) =>
+      path === 'resolve'
+        ? {
+            kind: 'playlist', title: 'P',
+            tracks: [
+              full(1, { key_signature: 'A minor', bpm: 126, downloadable: true }),
+              full(2, { purchase_url: 'https://shop.example/2', description: 'Out now. 128 bpm - Camelot 9B' }),
+              full(3, { description: 'Merci à tous pour le soutien' }),
+            ],
+          }
+        : null,
+  });
+  await extractor(win, APP);
+  const imp = core.decodeImport(win.opened.url.replace(/^.*?(#import=)/, '$1'));
+  const [a, b, c] = core.parseEntries(imp.tracks, 'X');
+  assert.equal(a.key, '8A');
+  assert.equal(a.bpm, 126);
+  assert.equal(a.dl, true);
+  assert.equal(b.key, '9B', 'tonalité lue dans la description');
+  assert.equal(b.bpm, 128);
+  assert.equal(b.buy, 'https://shop.example/2');
+  assert.equal(c.key, null);
+  assert.equal(c.dl, false);
+  assert.equal(imp.tracks[2].desc, '', 'une description sans tonalité ni tempo n\'est pas envoyée');
+});

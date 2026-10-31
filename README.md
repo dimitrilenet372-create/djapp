@@ -35,6 +35,10 @@ Les playlists sont gardées dans le navigateur de chaque appareil. Pour les retr
 
 Le lien contient ta clé : ne le partage pas. Pour arrêter, **Arrêter la synchro sur cet appareil** (les playlists restent). Si les deux appareils changent la même chose en même temps, ce qui existe d'un côté et pas de l'autre est conservé, donc une playlist supprimée peut revenir. L'ajout d'une playlist par le favori reste à faire sur l'ordinateur (soundcloud.com) : le téléphone sert à retrouver, écouter et ordonner.
 
+## Titres à récupérer
+
+Quand l'artiste propose un titre en téléchargement gratuit ou avec un lien d'achat, la ligne porte une pastille **Gratuit** ou **Achat**, et le bouton **Titres à récupérer** de la playlist liste ces titres avec leurs liens (et copie tous les liens d'un coup). Une fois les fichiers sur ton ordinateur, tu les mixes dans Mixxx, Serato ou rekordbox, y compris en soirée. C'est l'artiste qui décide : certains demandent de le suivre ou de passer par sa page avant d'ouvrir le téléchargement.
+
 ## Playlists et sets
 
 L'accueil a deux onglets : **Playlists** (tes playlists) et **Sets DJ** (les playlists ordonnées pour le DJ, repérées par une pastille SET). Un set créé s'ouvre dans son onglet ; une playlist passe dans **Sets DJ** dès que tu l'ordonne pour DJer.

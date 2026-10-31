@@ -5,7 +5,7 @@ import * as SY from './sync.js';
 import * as SE from './serato.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
-const VERSION = '2026-10-31-j';
+const VERSION = '2026-10-31-k';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -241,6 +241,25 @@ function tuneHtml(t) {
   return `<button type="button" class="tune" data-act="tune" aria-label="Tonalité et tempo de ${esc(t.title)}${t.key ? ` : ${esc(t.key)}` : ''}" title="Tonalité et tempo">${key}${bpm}</button>`;
 }
 
+/** Titre que l'artiste laisse récupérer : téléchargement gratuit sur SoundCloud, ou lien d'achat. */
+const getChip = (t) => (t.dl ? '<span class="get is-free" title="Téléchargement proposé par l\'artiste">Gratuit</span>' : t.buy ? '<span class="get" title="Lien d\'achat proposé par l\'artiste">Achat</span>' : '');
+const gettable = (pl) => pl.tracks.filter((t) => t.dl || t.buy);
+
+function getSheet(pl) {
+  const list = gettable(pl);
+  const link = (href, label) => `<a href="${esc(href)}" target="_blank" rel="noopener">${label}</a>`;
+  openSheet(`<h2 id="sheet-title">À récupérer : ${list.length} sur ${pl.tracks.length}</h2>
+    <p>Ces titres sont proposés au téléchargement ou à l'achat par leurs artistes. Une fois les fichiers sur ton ordinateur, tu peux les mixer dans Mixxx, Serato ou rekordbox, même en soirée.</p>
+    <ul class="get-list">${list
+      .map((t) => {
+        const links = [t.dl && safeUrl(t.url) ? link(t.url, 'Télécharger') : '', t.buy ? link(t.buy, 'Acheter') : ''].filter(Boolean).join(' · ');
+        return `<li><span class="get-name">${esc(core.labelOf(t))}</span><span class="get-links">${links}</span></li>`;
+      })
+      .join('')}</ul>
+    <p class="hint">C'est l'artiste qui décide : certains demandent de les suivre, de commenter ou de passer par leur page avant d'ouvrir le téléchargement.</p>
+    <div class="sheet-foot"><button type="button" class="link" data-act="copy-get" data-id="${pl.id}">Copier les liens</button></div>`);
+}
+
 function rowHtml(t, dup, dj = false) {
   const shown = t.familyId ? core.parseVersion(t.title).base || t.title : t.title;
   const badge = dup
@@ -259,7 +278,7 @@ function rowHtml(t, dup, dj = false) {
         ? `<button type="button" class="thumb play" data-act="play" style="--c:${tint(t.artist || t.title)}" aria-label="Écouter ${esc(t.title)}">${esc(letterOf(t.artist || t.title))}${t.art ? img(t.art, 't200x200') : ''}</button>`
         : `<span class="thumb" style="--c:${tint(t.artist || t.title)}">${esc(letterOf(t.artist || t.title))}${t.art ? img(t.art, 't200x200') : ''}</span>`
     }
-    <span class="trk-main"><span class="trk-title" title="${esc(t.title)}">${esc(shown)}</span><span class="trk-artist">${esc(t.artist || 'Artiste inconnu')}</span>${tuneHtml(t)}</span>
+    <span class="trk-main"><span class="trk-title" title="${esc(t.title)}">${esc(shown)}</span><span class="trk-artist">${esc(t.artist || 'Artiste inconnu')}</span><span class="trk-meta">${tuneHtml(t)}${getChip(t)}</span></span>
     <span class="trk-badges">${badge}</span>
     <span class="trk-dur">${t.duration ? L.formatDuration(t.duration) : ''}</span>
     ${
@@ -302,6 +321,9 @@ function renderDetail() {
   $('#split').disabled = pl.tracks.length < 2;
   $('#export').disabled = pl.tracks.length === 0;
   $('#serato').disabled = pl.tracks.length === 0;
+  const nGet = gettable(pl).length;
+  $('#getlist').hidden = nGet === 0;
+  $('#getlist').textContent = `Titres à récupérer (${nGet})`;
   const trans = pl.dj ? L.transitionsOf(pl.tracks) : [];
   const weak = trans.filter((x) => x.tone === 'weak').length;
   $('#pl-meta').textContent = metaOf(pl) + (pl.dj ? (weak ? ` · ${plural(weak, 'enchaînement à préparer', 'enchaînements à préparer')}` : ' · set sans saut difficile') : '');
@@ -1028,6 +1050,10 @@ $('#clean').addEventListener('click', () => {
 $('#recreate').addEventListener('click', () => {
   const pl = current();
   if (pl) pushSheet(pl);
+});
+$('#getlist').addEventListener('click', () => {
+  const pl = current();
+  if (pl) getSheet(pl);
 });
 $('#order').addEventListener('click', () => {
   const pl = current();

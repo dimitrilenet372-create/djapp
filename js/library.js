@@ -109,7 +109,7 @@ export function splitByStyle(pl, minSize = 5) {
 // --------------------------------------------------------------------------- //
 const packTrack = (t) => ({
   title: t.title, artist: t.artist, url: t.url, scid: t.scid, art: t.art,
-  genre: t.genre, tags: t.tags, duration: t.duration, bpm: t.bpm, key: t.key,
+  genre: t.genre, tags: t.tags, duration: t.duration, bpm: t.bpm, key: t.key, dl: t.dl, buy: t.buy,
 });
 
 export const serialize = (lib) => JSON.stringify({ v: 2, playlists: lib.map((p) => ({ id: p.id, name: p.name, art: p.art, dj: Boolean(p.dj), tracks: p.tracks.map(packTrack) })) });

@@ -138,6 +138,8 @@ export async function extractor(win, appUrl) {
       tags: full.length > 400 ? [] : parseTags(t.tag_list),
       duration: Math.round((t.full_duration || t.duration || 0) / 1000) || null,
       key: t.key_signature || '',
+      dl: t.downloadable ? 1 : undefined,
+      buy: t.purchase_url || undefined,
       bpm: typeof t.bpm === 'number' ? t.bpm : null,
       desc: full.length <= 400 && /bpm|key|tonalit|camelot|\b(?:1[0-2]|[1-9])[ab]\b/i.test(t.description || '') ? String(t.description).slice(0, 240) : '',
       webpage_url: t.permalink_url || '',

@@ -17,6 +17,8 @@ export function makeTrack(p) {
     tags: p.tags || [],
     bpm: p.bpm ?? null,
     key: parseKey(p.key) || null,
+    dl: Boolean(p.dl),
+    buy: /^https?:\/\//i.test(p.buy || '') ? p.buy : '',
     duration: p.duration ?? null,
     source: p.source || '',
     style: '',
@@ -259,6 +261,8 @@ export function dedupe(tracks, threshold = 90, durationTol = 6) {
       if (!match.tags.length && t.tags.length) match.tags = t.tags;
       if (match.bpm == null && t.bpm != null) match.bpm = t.bpm;
       if (!match.key && t.key) match.key = t.key;
+      if (!match.dl && t.dl) match.dl = true;
+      if (!match.buy && t.buy) match.buy = t.buy;
       dups.push({ removed: t, kept: match, reason });
     }
   }
@@ -470,7 +474,7 @@ function fromEntry(e, source) {
   const key = parseKey(e.key) || parseKey(e.key_signature) || findKey(free);
   const bpm = typeof e.bpm === 'number' ? e.bpm : findBpm(free);
   return makeTrack({
-    key, title, artist, genre, url: e.webpage_url || e.url || '', scid: scidOf(e.id), art: typeof e.art === 'string' ? e.art : '', tags: Array.isArray(e.tags) ? e.tags : [],
+    key, dl: e.dl === 1 || e.dl === true, buy: e.buy, title, artist, genre, url: e.webpage_url || e.url || '', scid: scidOf(e.id), art: typeof e.art === 'string' ? e.art : '', tags: Array.isArray(e.tags) ? e.tags : [],
     duration: typeof e.duration === 'number' ? e.duration : null, bpm, source,
   });
 }
