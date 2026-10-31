@@ -25,6 +25,11 @@ L'écran ressemble à une app de musique : un bouton **Ajouter une playlist**, e
 
 Les playlists restent dans ton navigateur : rien n'est envoyé à un serveur.
 
+## Écouter et enchaîner
+
+- **Lecteur.** Clique sur la pochette d'un titre pour l'écouter : un lecteur apparaît en bas (précédent, pause, suivant) et enchaîne les titres de la playlist, doublons exceptés. C'est le lecteur officiel de SoundCloud : il ne joue que les titres que leurs artistes autorisent hors de SoundCloud. Pour les autres, ouvre le titre sur SoundCloud (lien dans le lecteur). Un titre sans lien ni identifiant SoundCloud n'a pas de bouton d'écoute.
+- **Idées d'enchaînement.** Dans le lecteur, ce bouton liste les autres versions du titre écouté (original, remix, edit) trouvées dans toutes tes playlists, avec un lien pour chercher ses remixes sur SoundCloud, puis les titres de la même playlist au même style. Le tempo n'est utilisé que s'il est indiqué (SoundCloud ne le fournit pas toujours) ; la tonalité n'est pas disponible. **Jouer ensuite** place le titre juste après celui en cours.
+
 ## Recréer une playlist sur SoundCloud
 
 1. Dans la playlist, clique sur **Recréer sur SoundCloud** : l'app copie les titres et affiche les étapes.
@@ -71,7 +76,7 @@ npm test
 ```
 
 - `js/core.js` : lecture des données, doublons, versions, styles, exports (aucune dépendance au navigateur)
-- `js/library.js` : playlists, nettoyage, fusion, comparaison, rangement par style, enregistrement
+- `js/library.js` : playlists, nettoyage, fusion, comparaison, rangement par style, versions et enchaînements, enregistrement
 - `js/bookmarklet.js` : code des deux favoris (import et envoi vers SoundCloud)
 - `js/app.js` : interface
 - `test/` : tests de la logique et de l'interface (jsdom)

@@ -24,6 +24,22 @@ URL.revokeObjectURL = () => {};
 globalThis.__downloads = [];
 window.HTMLAnchorElement.prototype.click = function () { globalThis.__downloads.push(this.download); };
 window.scrollTo = () => {};
+// faux lecteur SoundCloud : la vraie API se charge depuis w.soundcloud.com
+const widgets = [];
+window.SC = {
+  Widget: Object.assign(
+    (frame) => {
+      const w = {
+        frame, handlers: {}, loaded: [], toggled: 0, paused: 0,
+        bind(e, fn) { this.handlers[e] = fn; }, load(u, o) { this.loaded.push([u, o]); },
+        toggle() { this.toggled++; }, pause() { this.paused++; },
+      };
+      widgets.push(w);
+      return w;
+    },
+    { Events: { PLAY: 'play', PAUSE: 'pause', FINISH: 'finish', ERROR: 'error' } },
+  ),
+};
 
 await import('../js/app.js');
 
@@ -243,6 +259,79 @@ test('import depuis le favori : une nouvelle playlist avec pochette, adresse net
   await wait();
   assert.deepEqual(JSON.parse(globalThis.__copied.slice(7)).lists, [{ name: 'Chill é', items: [11, 12] }]);
   click($('#sheet-x'));
+  click($('#back'));
+});
+
+test('lecteur : écoute, pause, suivant, enchaînement automatique, fermeture', async () => {
+  const payload = (name, tracks) => '#import=' + Buffer.from(JSON.stringify({ v: 1, name, tracks }), 'utf8').toString('base64url');
+  window.location.hash = payload('Lecteur', [
+    { id: 21, title: 'Eric Prydz - Pjanoo', genre: 'House' },
+    { id: 22, title: 'Eric Prydz - Pjanoo (Club Edit)', genre: 'House' },
+    { id: 23, title: 'DJ B - Autre morceau', genre: 'House' },
+    { title: 'Sans - Identifiant', genre: 'House' },
+  ]);
+  await wait(40);
+  open(cards().length - 1);
+  assert.equal($$('.thumb.play').length, 3, 'le titre sans lien ni identifiant n\'a pas de bouton écouter');
+  assert.equal($('#player').hidden, true);
+
+  click($$('.thumb.play')[0]);
+  await wait();
+  assert.equal($('#player').hidden, false);
+  assert.equal(widgets.length, 1);
+  assert.ok(widgets[0].frame.src.includes('w.soundcloud.com/player/'));
+  assert.ok(decodeURIComponent(widgets[0].frame.src).includes('https://api.soundcloud.com/tracks/21'));
+  assert.equal($('#p-title').textContent, 'Pjanoo');
+  assert.equal($('#p-prev').disabled, true);
+  assert.ok(rows()[0].classList.contains('is-current'));
+
+  widgets[0].handlers.play();
+  assert.equal($('#p-toggle').textContent, '❚❚');
+  assert.ok(rows()[0].classList.contains('is-playing'));
+  click($('#p-toggle'));
+  assert.equal(widgets[0].toggled, 1);
+  widgets[0].handlers.pause();
+  assert.equal($('#p-toggle').textContent, '▶');
+
+  click($('#p-next'));
+  await wait();
+  assert.equal($('#p-title').textContent, 'Pjanoo (Club Edit)');
+  assert.ok(widgets[0].loaded.at(-1)[0].endsWith('/tracks/22'), 'le même lecteur charge le titre suivant');
+  assert.equal(widgets[0].loaded.at(-1)[1].auto_play, true);
+  assert.equal(widgets.length, 1);
+
+  widgets[0].handlers.finish();
+  await wait();
+  assert.equal($('#p-title').textContent, 'Autre morceau');
+  assert.equal($('#p-next').disabled, true, 'fin de la file');
+  click($('#p-prev'));
+  await wait();
+  assert.equal($('#p-title').textContent, 'Pjanoo (Club Edit)');
+  click($('#p-prev'));
+  await wait();
+  assert.equal($('#p-title').textContent, 'Pjanoo');
+});
+
+test('idées d\'enchaînement : autres versions puis même style, « jouer ensuite »', async () => {
+  click($('#p-ideas'));
+  assert.equal(sheetOpen(), true);
+  const text = $('#sheet-body').textContent;
+  assert.match(text, /Autres versions dans tes playlists/);
+  assert.match(text, /Pjanoo \(Club Edit\).*Lecteur/s);
+  assert.match(text, /Même style : House/);
+  assert.match(text, /Autre morceau/);
+  assert.match(text, /tempo de ce titre n'est pas indiqué/);
+  assert.match($('#sheet-body a.link').href, /soundcloud\.com\/search\/sounds\?q=Eric%20Prydz%20Pjanoo%20remix/);
+  const before = widgets[0].loaded.length;
+  click($$('[data-act="play-next"]').at(-1));
+  await wait();
+  assert.equal(sheetOpen(), false);
+  assert.equal(widgets[0].loaded.length, before + 1);
+  assert.equal($('#p-title').textContent, 'Autre morceau');
+  click($('#p-close'));
+  assert.equal($('#player').hidden, true);
+  assert.equal(widgets[0].paused, 1);
+  assert.equal(document.body.classList.contains('has-player'), false);
   click($('#back'));
 });
 

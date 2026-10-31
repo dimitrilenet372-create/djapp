@@ -99,3 +99,45 @@ test('enregistrement : aller-retour, pochette et identifiant conservés, texte a
   assert.deepEqual(L.deserialize(null), []);
   assert.deepEqual(L.deserialize('{"v":1,"playlists":[]}'), []);
 });
+
+test('DJ : versions retrouvées dans toute la bibliothèque, sans les doublons exacts', () => {
+  const orig = tr('Eric Prydz - Pjanoo');
+  const remix = tr('Eric Prydz - Pjanoo (Club Edit)');
+  const dupOfOrig = tr('Eric Prydz - Pjanoo');
+  const other = tr('Autre - Truc');
+  const a = pl('A', [orig, other]);
+  const b = pl('B', [remix, dupOfOrig]);
+  const r = L.relatedTracks([a, b], a, orig);
+  assert.equal(r.versions.length, 1);
+  assert.equal(r.versions[0].track.id, remix.id);
+  assert.equal(r.versions[0].playlist.name, 'B');
+  assert.match(r.versions[0].label, /edit/i);
+  // depuis le remix, on retrouve l'original en premier
+  const back = L.relatedTracks([a, b], b, remix);
+  assert.equal(back.versions[0].track.id, orig.id);
+  assert.equal(back.versions[0].label, 'Original');
+});
+
+test('DJ : même style dans la playlist, tempo proche quand il est connu', () => {
+  const t = (n, bpm, genre = 'House') => tr(`DJ ${n} - Morceau ${n}`, { genre, bpm });
+  const cur = t('cur', 124);
+  const near = t('near', 126);
+  const far = t('far', 140);
+  const noBpm = t('nobpm', null);
+  const techno = t('techno', 124, 'Techno');
+  const p = pl('P', [cur, near, far, noBpm, techno]);
+  const r = L.relatedTracks([p], p, cur);
+  assert.equal(r.style, 'House');
+  assert.equal(r.tempoKnown, true);
+  assert.deepEqual(r.similar.map((s) => s.track.id), [near.id, noBpm.id], 'trop loin et autre style écartés');
+  assert.equal(r.similar[0].tempo, true);
+  assert.equal(r.similar[1].tempo, false);
+  // sans tempo sur le titre courant, on ne filtre pas sur le tempo
+  const cur2 = t('cur2', null);
+  const p2 = pl('P2', [cur2, near, far]);
+  assert.equal(L.relatedTracks([p2], p2, cur2).similar.length, 2);
+  // style inconnu : aucune suggestion
+  const unk = tr('Z - Titre sans style');
+  const p3 = pl('P3', [unk, near]);
+  assert.equal(L.relatedTracks([p3], p3, unk).similar.length, 0);
+});

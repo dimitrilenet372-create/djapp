@@ -61,6 +61,24 @@
     <button type="button" class="btn btn-ghost" id="hb-clear">Annuler</button>
   </div>
 
+  <div id="player" class="player" hidden>
+    <div class="player-now">
+      <span id="p-thumb" class="thumb" aria-hidden="true"></span>
+      <span class="trk-main"><span id="p-title" class="trk-title"></span><span id="p-artist" class="trk-artist"></span></span>
+    </div>
+    <div class="player-ctl">
+      <button type="button" id="p-prev" class="ctl" aria-label="Titre précédent">⏮</button>
+      <button type="button" id="p-toggle" class="ctl ctl-main" aria-label="Lecture ou pause">▶</button>
+      <button type="button" id="p-next" class="ctl" aria-label="Titre suivant">⏭</button>
+    </div>
+    <iframe id="p-frame" class="player-frame" title="Lecteur SoundCloud" height="72" allow="autoplay" loading="lazy"></iframe>
+    <div class="player-extra">
+      <button type="button" id="p-ideas" class="link">Idées d'enchaînement</button>
+      <a id="p-open" class="link" href="#" target="_blank" rel="noopener">Ouvrir sur SoundCloud</a>
+      <button type="button" id="p-close" class="ctl" aria-label="Fermer le lecteur">×</button>
+    </div>
+  </div>
+
   <div id="sheet" class="sheet" hidden>
     <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
       <button type="button" id="sheet-x" class="sheet-x" aria-label="Fermer">×</button>

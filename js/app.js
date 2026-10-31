@@ -45,6 +45,11 @@ const saveSoon = () => {
 
 const current = () => state.lib.find((p) => p.id === state.id) || null;
 
+// lecteur : file des titres de la playlist en cours d'écoute
+const player = { queue: [], i: -1, widget: null, playing: false };
+const nowTrack = () => player.queue[player.i] || null;
+const playableUrl = (t) => safeUrl(t.url) || (t.scid ? `https://api.soundcloud.com/tracks/${t.scid}` : '');
+
 // --------------------------------------------------------------------------- //
 // Message, copie, téléchargement
 // --------------------------------------------------------------------------- //
@@ -176,8 +181,13 @@ function rowHtml(t, dup) {
   const open = url
     ? `<a class="open" href="${esc(url)}" target="_blank" rel="noopener" aria-label="Ouvrir ${esc(t.title)} sur SoundCloud">${OPEN_ICON}</a>`
     : '<span></span>';
-  return `<li class="trk${dup ? ' is-dup' : ''}" data-id="${t.id}">
-    <span class="thumb" style="--c:${tint(t.artist || t.title)}">${esc(letterOf(t.artist || t.title))}${t.art ? img(t.art, 't200x200') : ''}</span>
+  const cur = nowTrack() && nowTrack().id === t.id;
+  return `<li class="trk${dup ? ' is-dup' : ''}${cur ? ' is-current' : ''}${cur && player.playing ? ' is-playing' : ''}" data-id="${t.id}">
+    ${
+      playableUrl(t)
+        ? `<button type="button" class="thumb play" data-act="play" style="--c:${tint(t.artist || t.title)}" aria-label="Écouter ${esc(t.title)}">${esc(letterOf(t.artist || t.title))}${t.art ? img(t.art, 't200x200') : ''}</button>`
+        : `<span class="thumb" style="--c:${tint(t.artist || t.title)}">${esc(letterOf(t.artist || t.title))}${t.art ? img(t.art, 't200x200') : ''}</span>`
+    }
     <span class="trk-main"><span class="trk-title" title="${esc(t.title)}">${esc(shown)}</span><span class="trk-artist">${esc(t.artist || 'Artiste inconnu')}</span></span>
     <span class="trk-badges">${badge}</span>
     <span class="trk-dur">${t.duration ? L.formatDuration(t.duration) : ''}</span>
@@ -388,6 +398,139 @@ function handleImport() {
 window.addEventListener('hashchange', handleImport);
 
 // --------------------------------------------------------------------------- //
+// Lecteur SoundCloud (widget officiel) : ne joue que les titres que leurs artistes autorisent hors de SoundCloud
+// --------------------------------------------------------------------------- //
+let apiPromise = null;
+function loadWidgetApi() {
+  if (window.SC && window.SC.Widget) return Promise.resolve();
+  if (!apiPromise) {
+    apiPromise = new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = 'https://w.soundcloud.com/player/api.js';
+      el.onload = resolve;
+      el.onerror = () => {
+        apiPromise = null;
+        reject(new Error('api'));
+      };
+      document.head.append(el);
+      setTimeout(() => reject(new Error('délai dépassé')), 10000);
+    });
+  }
+  return apiPromise;
+}
+
+function syncPlayer() {
+  const t = nowTrack();
+  $('#player').hidden = !t;
+  document.body.classList.toggle('has-player', Boolean(t));
+  if (!t) return;
+  $('#p-title').textContent = t.title;
+  $('#p-artist').textContent = t.artist || 'Artiste inconnu';
+  $('#p-toggle').textContent = player.playing ? '❚❚' : '▶';
+  $('#p-prev').disabled = player.i <= 0;
+  $('#p-next').disabled = player.i >= player.queue.length - 1;
+  const thumb = $('#p-thumb');
+  thumb.style.setProperty('--c', tint(t.artist || t.title));
+  thumb.innerHTML = esc(letterOf(t.artist || t.title)) + (t.art ? img(t.art, 't200x200') : '');
+  $('#p-open').href = safeUrl(t.url) || '#';
+  $('#p-open').hidden = !safeUrl(t.url);
+  // la ligne en cours reste surlignée sans refaire toute la liste
+  for (const li of document.querySelectorAll('#tracks .trk')) {
+    const on = String(t.id) === li.dataset.id;
+    li.classList.toggle('is-current', on);
+    li.classList.toggle('is-playing', on && player.playing);
+  }
+}
+
+async function playIndex(i) {
+  const t = player.queue[i];
+  if (!t) return;
+  player.i = i;
+  player.playing = false;
+  syncPlayer();
+  const url = playableUrl(t);
+  try {
+    await loadWidgetApi();
+  } catch {
+    toast('Le lecteur SoundCloud ne se charge pas. Le titre s\'ouvre sur SoundCloud.', 5000);
+    window.open(url, '_blank', 'noopener');
+    return;
+  }
+  const opts = { auto_play: true, show_comments: false, hide_related: true, visual: false };
+  if (!player.widget) {
+    const q = new URLSearchParams({ url, auto_play: 'true', show_comments: 'false', hide_related: 'true', visual: 'false' });
+    const frame = $('#p-frame');
+    frame.src = `https://w.soundcloud.com/player/?${q}`;
+    const w = window.SC.Widget(frame);
+    const E = window.SC.Widget.Events;
+    w.bind(E.PLAY, () => { player.playing = true; syncPlayer(); });
+    w.bind(E.PAUSE, () => { player.playing = false; syncPlayer(); });
+    w.bind(E.FINISH, () => {
+      player.playing = false;
+      if (player.i < player.queue.length - 1) playIndex(player.i + 1);
+      else syncPlayer();
+    });
+    w.bind(E.ERROR, () => toast('Ce titre ne peut pas être lu ici : ouvre-le sur SoundCloud.', 5000));
+    player.widget = w;
+  } else {
+    player.widget.load(url, opts);
+  }
+}
+
+/** Écoute un titre de la playlist ouverte ; la file reprend les titres de la liste, doublons exceptés. */
+function playFromPlaylist(pl, id) {
+  const dups = dupsOf(pl);
+  const queue = pl.tracks.filter((t) => playableUrl(t) && (!dups.has(t.id) || t.id === id));
+  const i = queue.findIndex((t) => t.id === id);
+  if (i < 0) return;
+  player.queue = queue;
+  playIndex(i);
+}
+
+function ideasSheet() {
+  const t = nowTrack();
+  if (!t) return;
+  const pl = state.lib.find((p) => p.tracks.includes(t)) || current() || state.lib[0];
+  const r = L.relatedTracks(state.lib, pl, t);
+  const row = (x, extra) => {
+    const can = playableUrl(x.track);
+    return `<div class="idea"><span class="idea-main"><b>${esc(core.labelOf(x.track))}</b><small>${esc(extra)}</small></span>${
+      can ? `<button type="button" class="btn btn-small btn-line" data-act="play-next" data-id="${x.track.id}">Jouer ensuite</button>` : ''
+    }</div>`;
+  };
+  const q = encodeURIComponent(`${t.artist} ${core.parseVersion(t.title).base}`.trim());
+  openSheet(`<div class="ideas"><h2 id="sheet-title">Pour enchaîner avec « ${esc(core.parseVersion(t.title).base || t.title)} »</h2>
+    <h3>Autres versions dans tes playlists</h3>
+    ${
+      r.versions.length
+        ? r.versions.map((v) => row(v, `${v.label} · ${v.playlist.name}`)).join('')
+        : '<p>Aucune autre version de ce titre dans tes playlists.</p>'
+    }
+    <p style="margin-top:8px"><a class="link" href="https://soundcloud.com/search/sounds?q=${q}%20remix" target="_blank" rel="noopener">Chercher ses remixes sur SoundCloud</a></p>
+    <h3>${r.style ? `Même style : ${esc(r.style)}` : 'Même style'}</h3>
+    ${
+      r.style
+        ? r.similar.length
+          ? `<p>${r.tempoKnown ? 'Tempo proche d\'abord, quand il est connu.' : 'Le tempo de ce titre n\'est pas indiqué : le choix se fait sur le style seulement.'} La tonalité n'est pas fournie par SoundCloud.</p>` +
+            r.similar.map((x) => row(x, `${x.playlist.name}${x.track.bpm ? ` · ${Math.round(x.track.bpm)} BPM` : ''}`)).join('')
+          : '<p>Aucun autre titre de ce style dans cette playlist.</p>'
+        : '<p>Le style de ce titre n\'est pas reconnu (genre absent sur SoundCloud).</p>'
+    }</div>`);
+}
+
+$('#p-toggle').addEventListener('click', () => player.widget && player.widget.toggle());
+$('#p-prev').addEventListener('click', () => player.i > 0 && playIndex(player.i - 1));
+$('#p-next').addEventListener('click', () => player.i < player.queue.length - 1 && playIndex(player.i + 1));
+$('#p-ideas').addEventListener('click', ideasSheet);
+$('#p-close').addEventListener('click', () => {
+  if (player.widget) player.widget.pause();
+  player.queue = [];
+  player.i = -1;
+  player.playing = false;
+  syncPlayer();
+});
+
+// --------------------------------------------------------------------------- //
 // Événements
 // --------------------------------------------------------------------------- //
 $('#add').addEventListener('click', () => addSheet());
@@ -500,6 +643,12 @@ $('#notice').addEventListener('click', (e) => {
 });
 
 $('#tracks').addEventListener('click', (e) => {
+  const play = e.target.closest('[data-act="play"]');
+  if (play) {
+    const pl = current();
+    if (pl) playFromPlaylist(pl, Number(play.closest('.trk').dataset.id));
+    return;
+  }
   const btn = e.target.closest('[data-act="remove-track"]');
   if (!btn) return;
   const pl = current();
@@ -525,6 +674,14 @@ $('#sheet-body').addEventListener('click', async (e) => {
     const pl = state.lib.find((p) => p.id === btn.dataset.id);
     if (pl) toast((await copyText(core.soundcloudPayload([pl]).text)) ? 'Copié.' : 'Copie impossible.');
   } else if (act === 'merge-two') mergePicked([btn.dataset.a, btn.dataset.b]);
+  else if (act === 'play-next') {
+    const id = Number(btn.dataset.id);
+    const t = state.lib.flatMap((p) => p.tracks).find((x) => x.id === id);
+    if (!t) return;
+    player.queue.splice(player.i + 1, 0, t);
+    closeSheet();
+    playIndex(player.i + 1);
+  }
 });
 $('#sheet-body').addEventListener('submit', async (e) => {
   if (e.target.id !== 'paste-form') return;

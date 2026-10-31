@@ -129,3 +129,55 @@ export function deserialize(text) {
     return [];
   }
 }
+
+// --------------------------------------------------------------------------- //
+// DJ : versions d'un titre et idées d'enchaînement
+// --------------------------------------------------------------------------- //
+const BPM_TOLERANCE = 0.06;
+
+/**
+ * Autour d'un titre : ses autres versions (original, remix, edit…) dans toute la bibliothèque, puis des titres
+ * de la même playlist au même style, et au tempo proche quand les deux tempos sont connus.
+ * Rien n'est inventé : SoundCloud ne fournit pas toujours le tempo, et la tonalité n'est pas disponible.
+ */
+export function relatedTracks(lib, pl, track, limit = 8) {
+  const where = new Map();
+  const all = [];
+  for (const p of lib) {
+    for (const t of p.tracks) {
+      all.push({ ...t, tags: [...(t.tags || [])] });
+      where.set(t.id, { track: t, playlist: p });
+    }
+  }
+  const families = core.annotateVersions(all);
+  const fam = families.find((f) => f.members.some((m) => m.id === track.id));
+  const famIds = new Set(fam ? fam.members.map((m) => m.id) : [track.id]);
+
+  const seen = new Set([track.sig]);
+  const versions = [];
+  if (fam) {
+    const members = [...fam.members].sort((a, b) => (a.versionLabel === 'Original' ? -1 : 0) - (b.versionLabel === 'Original' ? -1 : 0));
+    for (const m of members) {
+      if (m.id === track.id || seen.has(m.sig)) continue; // même titre sous un autre exemplaire : un doublon, pas une version
+      seen.add(m.sig);
+      versions.push({ ...where.get(m.id), label: m.versionLabel });
+    }
+  }
+
+  const style = core.detectStyle(track);
+  const similar = [];
+  if (style) {
+    for (const t of pl.tracks) {
+      if (famIds.has(t.id) || t.sig === track.sig || core.detectStyle(t) !== style) continue;
+      let gap = 0;
+      if (track.bpm && t.bpm) {
+        gap = Math.abs(t.bpm - track.bpm) / track.bpm;
+        if (gap > BPM_TOLERANCE) continue;
+      }
+      similar.push({ track: t, playlist: pl, gap, tempo: Boolean(track.bpm && t.bpm) });
+    }
+    // d'abord ceux dont le tempo est connu et proche, puis les autres dans l'ordre de la playlist
+    similar.sort((a, b) => (a.tempo === b.tempo ? a.gap - b.gap : a.tempo ? -1 : 1));
+  }
+  return { versions, similar: similar.slice(0, limit), style, tempoKnown: Boolean(track.bpm) };
+}
