@@ -170,3 +170,49 @@ test('zip valide', () => {
   assert.equal(dv.getUint32(z.length - 22, true), 0x06054b50);
   assert.equal(dv.getUint16(z.length - 22 + 10, true), 2);
 });
+
+// --- tonalité (roue Camelot) ---
+test('tonalité : toutes les écritures donnent le même code Camelot', async () => {
+  const { parseKey } = await import('../js/core.js');
+  const cases = { '8A': '8A', '8a': '8A', 'Am': '8A', 'A minor': '8A', 'a min': '8A', 'C': '8B', 'C major': '8B', 'Dm': '7A', 'F# minor': '11A', 'Gb': '2B', 'Bb': '6B', 'Abm': '1A', 'C#m': '12A', '12B': '12B', 'E': '12B', 'Em': '9A' };
+  for (const [raw, code] of Object.entries(cases)) assert.equal(parseKey(raw), code, raw);
+  for (const bad of ['', 'foo', 'H', '13A', '0B', null, undefined]) assert.equal(parseKey(bad), null, String(bad));
+});
+
+test('tonalité et tempo repérés dans le texte, sans deviner', async () => {
+  const { findKey, findBpm } = await import('../js/core.js');
+  assert.equal(findKey('key: F# minor'), '11A');
+  assert.equal(findKey('Camelot 8A'), '8A');
+  assert.equal(findKey('Original Mix (8A)'), '8A');
+  assert.equal(findKey('Song [F#m]'), '11A');
+  assert.equal(findKey('A minor vibes'), '8A');
+  assert.equal(findKey('deep Am house'), null, 'une note collée à un mot ne suffit pas');
+  assert.equal(findKey('house techno 2024'), null);
+  assert.equal(findBpm('128 bpm, key: Am'), 128);
+  assert.equal(findBpm('bpm: 124,5'), 124.5);
+  assert.equal(findBpm('1280 bpm'), null);
+  assert.equal(findBpm('pas de tempo'), null);
+});
+
+test('la tonalité vient du champ SoundCloud, des tags ou de la description, et survit au CSV', async () => {
+  const { parseEntries, parseAny, tracksToCsv, newPlaylist } = await import('../js/core.js');
+  const [a, b, c, d] = parseEntries([
+    { id: 1, title: 'Aa - Un', key: '9A' },
+    { id: 2, title: 'Bb - Deux', tags: ['house', 'key:C#m'] },
+    { id: 3, title: 'Cc - Trois', desc: 'Free DL. 126 bpm, Camelot 4B' },
+    { id: 4, title: 'Dd - Quatre' },
+  ]);
+  assert.equal(a.key, '9A');
+  assert.equal(b.key, '12A');
+  assert.equal(c.key, '4B');
+  assert.equal(c.bpm, 126);
+  assert.equal(d.key, null);
+  const csv = tracksToCsv([newPlaylist('P', [a, c])]);
+  assert.match(csv, /BPM,Tonalité,Lien/);
+  assert.match(csv, /Aa/);
+  const back = parseAny(csv, 'csv');
+  assert.deepEqual(back.map((t) => t.key), ['9A', '4B']);
+  const [line] = parseAny('Moi - Toi | house | 124 | 8A', 'x');
+  assert.equal(line.key, '8A');
+  assert.equal(line.bpm, 124);
+});

@@ -109,7 +109,7 @@ export function splitByStyle(pl, minSize = 5) {
 // --------------------------------------------------------------------------- //
 const packTrack = (t) => ({
   title: t.title, artist: t.artist, url: t.url, scid: t.scid, art: t.art,
-  genre: t.genre, tags: t.tags, duration: t.duration, bpm: t.bpm,
+  genre: t.genre, tags: t.tags, duration: t.duration, bpm: t.bpm, key: t.key,
 });
 
 export const serialize = (lib) => JSON.stringify({ v: 2, playlists: lib.map((p) => ({ id: p.id, name: p.name, art: p.art, dj: Boolean(p.dj), tracks: p.tracks.map(packTrack) })) });
@@ -228,6 +228,27 @@ function prepareSet(tracks) {
   return { style, fam };
 }
 
+/**
+ * Deux tonalités (codes Camelot) se mixent-elles ? Même case, case voisine de même lettre (±1) et relatif (même numéro,
+ * autre lettre) vont ensemble ; ±2 ou la diagonale demandent un peu de métier ; le reste sonne faux.
+ * Renvoie null si l'une des deux est inconnue.
+ */
+export function keyLink(ka, kb) {
+  const pa = /^(\d+)([AB])$/.exec(ka || '');
+  const pb = /^(\d+)([AB])$/.exec(kb || '');
+  if (!pa || !pb) return null;
+  const na = Number(pa[1]);
+  const nb = Number(pb[1]);
+  const step = Math.min((na - nb + 12) % 12, (nb - na + 12) % 12);
+  const same = pa[2] === pb[2];
+  const arrow = `${ka} → ${kb}`;
+  if (ka === kb) return { cost: 0, label: `même tonalité (${ka})` };
+  if (same && step === 1) return { cost: 0, label: `tonalités voisines (${arrow})` };
+  if (!same && step === 0) return { cost: 0.25, label: `tonalités relatives (${arrow})` };
+  if ((same && step === 2) || (!same && step === 1)) return { cost: 0.75, label: `tonalité à surveiller (${arrow})` };
+  return { cost: 2.5, label: `tonalités qui s'opposent (${arrow})` };
+}
+
 /** Coût et description d'un enchaînement a → b (plus c'est bas, mieux ça se mixe). */
 function link(ctx, a, b) {
   const parts = [];
@@ -254,6 +275,11 @@ function link(ctx, a, b) {
     else if (Math.min(half, half2) <= 0.03) { cost += 1; parts.push(`tempo moitié/double (${rounded})`); }
     else { cost += 2.5; parts.push(`écart de tempo (${rounded})`); }
   }
+  const k = keyLink(a.key, b.key);
+  if (k) {
+    cost += k.cost;
+    parts.push(k.label);
+  }
   return { cost, tone: cost <= 1 ? 'good' : cost <= 2 ? 'ok' : 'weak', label: parts.join(' · ') };
 }
 
@@ -272,7 +298,7 @@ export function transitionsOf(tracks) {
  * Ordonne des titres pour les mixer : on part du premier (ou de `startId`) puis, à chaque fois, on prend le titre
  * qui s'enchaîne le mieux (style, tempo quand il est connu, versions côte à côte). Les titres sans aucun voisin de style
  * dans la sélection sont mis de côté (`aside`) quand `keepAll` est faux.
- * La tonalité n'est pas utilisée : SoundCloud ne la fournit pas.
+ * Le tempo et la tonalité (roue Camelot) ne comptent que s'ils sont connus des deux côtés.
  */
 export function buildSet(tracks, { startId = null, keepAll = false } = {}) {
   const ctx = prepareSet(tracks);

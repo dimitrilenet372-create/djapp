@@ -230,6 +230,17 @@ function dupsOf(pl) {
 const OPEN_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
 
+/** Pastille tonalité (code Camelot, coloré comme la roue) et tempo ; un clic ouvre la saisie. */
+function tuneHtml(t) {
+  const n = t.key ? parseInt(t.key, 10) : 0;
+  const hue = ((n - 1) * 30 + (t.key && t.key.endsWith('B') ? 0 : 0)) % 360;
+  const key = t.key
+    ? `<span class="tune-key" style="--k:${hue}" data-b="${t.key.endsWith('B') ? 1 : 0}">${esc(t.key)}</span>`
+    : '<span class="tune-add">+ clé</span>';
+  const bpm = t.bpm ? `<span class="tune-bpm">${Math.round(t.bpm)}</span>` : '';
+  return `<button type="button" class="tune" data-act="tune" aria-label="Tonalité et tempo de ${esc(t.title)}${t.key ? ` : ${esc(t.key)}` : ''}" title="Tonalité et tempo">${key}${bpm}</button>`;
+}
+
 function rowHtml(t, dup, dj = false) {
   const shown = t.familyId ? core.parseVersion(t.title).base || t.title : t.title;
   const badge = dup
@@ -248,7 +259,7 @@ function rowHtml(t, dup, dj = false) {
         ? `<button type="button" class="thumb play" data-act="play" style="--c:${tint(t.artist || t.title)}" aria-label="Écouter ${esc(t.title)}">${esc(letterOf(t.artist || t.title))}${t.art ? img(t.art, 't200x200') : ''}</button>`
         : `<span class="thumb" style="--c:${tint(t.artist || t.title)}">${esc(letterOf(t.artist || t.title))}${t.art ? img(t.art, 't200x200') : ''}</span>`
     }
-    <span class="trk-main"><span class="trk-title" title="${esc(t.title)}">${esc(shown)}</span><span class="trk-artist">${esc(t.artist || 'Artiste inconnu')}</span></span>
+    <span class="trk-main"><span class="trk-title" title="${esc(t.title)}">${esc(shown)}</span><span class="trk-artist">${esc(t.artist || 'Artiste inconnu')}</span>${tuneHtml(t)}</span>
     <span class="trk-badges">${badge}</span>
     <span class="trk-dur">${t.duration ? L.formatDuration(t.duration) : ''}</span>
     ${
@@ -514,6 +525,21 @@ function seratoDownload(kind) {
   if (kind === 'crate') download(`${name}.crate`, SE.makeCrate(found.map((f) => f.path)), 'application/octet-stream');
   else download(`${name}.m3u8`, SE.makeM3u(found), 'audio/x-mpegurl;charset=utf-8');
   toast(`${plural(found.length, 'titre', 'titres')} dans « ${name} ».`);
+}
+
+function tuneSheet(pl, t) {
+  openSheet(`<h2 id="sheet-title">Tonalité et tempo</h2>
+    <p class="tune-for">${esc(core.labelOf(t))}</p>
+    <form id="tune-form" class="paste" autocomplete="off" data-pl="${pl.id}" data-id="${t.id}">
+      <label for="tune-key"><b>Tonalité</b> <small>8A, Am, F# minor, Db…</small></label>
+      <input id="tune-key" value="${esc(t.key || '')}" placeholder="ex. 8A" autocapitalize="off" spellcheck="false">
+      <label for="tune-bpm"><b>Tempo</b> <small>BPM</small></label>
+      <input id="tune-bpm" inputmode="decimal" value="${t.bpm ? esc(String(Math.round(t.bpm * 10) / 10)) : ''}" placeholder="ex. 128">
+      <p class="hint">Tu les trouves dans Mixxx, Serato, rekordbox ou Mixed In Key. 8A est la mineur, 8B do majeur ; les cases voisines de la roue se mixent bien.</p>
+      <p class="warn" id="tune-warn" hidden></p>
+      <div class="paste-foot"><button type="submit" class="btn btn-small btn-solid">Enregistrer</button></div>
+    </form>`);
+  $('#tune-key').focus();
 }
 
 function compareSheet(a, b) {
@@ -1077,6 +1103,13 @@ $('#tracks').addEventListener('click', (e) => {
     $(`#tracks .trk[data-id="${id}"] [data-act="${mv.dataset.act}"]`)?.focus();
     return;
   }
+  const tune = e.target.closest('[data-act="tune"]');
+  if (tune) {
+    const pl = current();
+    const t = pl && pl.tracks.find((x) => x.id === Number(tune.closest('.trk').dataset.id));
+    if (t) tuneSheet(pl, t);
+    return;
+  }
   // toute la ligne lance la musique, sauf les boutons et liens qu'elle contient
   const row = e.target.closest('.trk.can-play');
   if (row && !e.target.closest('a, button:not([data-act="play"])')) {
@@ -1164,6 +1197,31 @@ $('#sheet-body').addEventListener('input', (e) => {
   renderSerato();
 });
 $('#sheet-body').addEventListener('submit', async (e) => {
+  if (e.target.id === 'tune-form') {
+    e.preventDefault();
+    const f = e.target;
+    const pl = state.lib.find((p) => p.id === f.dataset.pl);
+    const t = pl && pl.tracks.find((x) => x.id === Number(f.dataset.id));
+    if (!t) return closeSheet();
+    const rawKey = $('#tune-key').value.trim();
+    const rawBpm = $('#tune-bpm').value.trim().replace(',', '.');
+    const key = core.parseKey(rawKey);
+    const bpm = rawBpm ? parseFloat(rawBpm) : null;
+    const warn = $('#tune-warn');
+    if (rawKey && !key) {
+      warn.textContent = `« ${rawKey} » n'est pas une tonalité reconnue. Essaie 8A, Am ou F# minor.`;
+      warn.hidden = false;
+      return;
+    }
+    if (rawBpm && !(bpm >= 40 && bpm <= 250)) {
+      warn.textContent = 'Le tempo doit être un nombre entre 40 et 250.';
+      warn.hidden = false;
+      return;
+    }
+    closeSheet();
+    mutate(pl, pl.tracks.map((x) => (x === t ? { ...x, key, bpm } : x)), `${t.title} : ${[key, bpm && `${Math.round(bpm)} BPM`].filter(Boolean).join(' · ') || 'tonalité et tempo effacés'}.`, false);
+    return;
+  }
   if (e.target.id === 'sync-form') {
     e.preventDefault();
     await enableSync($('#sync-token').value);

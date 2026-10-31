@@ -47,7 +47,9 @@ L'accueil a deux onglets : **Playlists** (tes playlists) et **Sets DJ** (les pla
 4. Les titres qui ne vont avec aucun autre (par exemple un seul rap dans une sélection house et techno) sont mis dans une playlist **À part**, pour ne pas casser le set. Rien n'est supprimé.
 5. Ajuste à la main avec ▲ et ▼, ou clique sur **Réordonner le set**. **Ordonner pour DJer** fait la même chose sur une playlist ordinaire. Puis **Recréer sur SoundCloud** pour garder l'ordre sur ton compte.
 
-Ce qui sert à juger : le style (genre SoundCloud, tags, titre) et, quand il est indiqué, le tempo (BPM). SoundCloud ne fournit ni la tonalité ni, le plus souvent, le tempo : sans tempo l'ordre repose sur le style seulement, et c'est écrit sur la ligne. Les sons à proposer viennent de SoundCloud : **Idées d'enchaînement** donne le lien « Sons similaires » du titre ; ouvre-le puis clique sur le favori pour les ajouter comme une playlist, à fusionner dans ton set.
+Ce qui sert à juger : le style (genre SoundCloud, tags, titre), le tempo et la **tonalité** quand ils sont connus. La tonalité s'écrit en code Camelot (8A = la mineur, 8B = do majeur), comme dans Serato, rekordbox et Mixed In Key : deux titres se mixent bien quand leurs cases sont les mêmes, voisines (8A et 9A) ou relatives (8A et 8B). Chaque enchaînement du set le dit (« tonalités voisines », « à surveiller », « s'opposent »).
+
+D'où viennent les tonalités : le favori reprend celle que l'artiste a indiquée sur SoundCloud (champ de tonalité, tags, début de la description, par exemple « Camelot 8A » ou « key: Am »). SoundCloud ne la renseigne pas toujours : sinon clique sur **+ clé** sous un titre pour la saisir (8A, Am, F# minor…), avec le tempo. L'app n'analyse pas l'audio : ni SoundCloud ni le navigateur ne lui donnent le son. Pour une analyse automatique, passe tes fichiers dans Mixxx, Serato ou Mixed In Key, puis reporte les valeurs ici.
 
 ## Écouter et enchaîner
 

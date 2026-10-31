@@ -16,6 +16,7 @@ export function makeTrack(p) {
     genre: p.genre || '',
     tags: p.tags || [],
     bpm: p.bpm ?? null,
+    key: parseKey(p.key) || null,
     duration: p.duration ?? null,
     source: p.source || '',
     style: '',
@@ -26,6 +27,63 @@ export function makeTrack(p) {
   t.nTitle = normalize(t.title);
   t.sig = `${t.nArtist} ${t.nTitle}`.trim();
   return t;
+}
+
+
+// --------------------------------------------------------------------------- //
+// Tonalité (roue Camelot, celle qu'utilisent les DJ : 8A = la mineur, 8B = do majeur)
+// --------------------------------------------------------------------------- //
+const PITCH = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
+const KEY_BODY = String.raw`([a-g])\s?([#♯b♭]?)\s?(minor|major|min|maj|m)?`;
+const camelotOf = (pc, minor) => {
+  const major = minor ? (pc + 3) % 12 : pc; // un mineur partage le numéro de son relatif majeur
+  return `${((8 + 7 * major - 1) % 12 + 12) % 12 + 1}${minor ? 'A' : 'B'}`;
+};
+
+/**
+ * Tonalité écrite à la main ou dans un champ prévu pour ça : « 8A », « Am », « A minor », « F# min », « Db ».
+ * Renvoie le code Camelot (« 8A »), ou null. Une note seule (« C ») est lue comme majeure.
+ */
+export function parseKey(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return null;
+  const cam = /^(1[0-2]|[1-9])\s?([ab])$/i.exec(s);
+  if (cam) return `${Number(cam[1])}${cam[2].toUpperCase()}`;
+  const m = new RegExp(`^${KEY_BODY}$`, 'i').exec(s.replace(/\s+/g, ' '));
+  if (!m) return null;
+  let pc = PITCH[m[1].toLowerCase()];
+  if (m[2] === '#' || m[2] === '♯') pc += 1;
+  else if (m[2] === 'b' || m[2] === '♭') pc -= 1;
+  const q = (m[3] || '').toLowerCase();
+  // « Bb » = si bémol ; « B » + « b » seul reste ambigu seulement si on lisait un texte libre
+  return camelotOf(((pc % 12) + 12) % 12, q === 'm' || q === 'min' || q === 'minor');
+}
+
+/**
+ * Tonalité repérée dans un texte libre (titre, tags, description). Prudent : on n'accepte que les formes sans
+ * ambiguïté (« key: Am », « Camelot 8A », « (8A) », « A minor », « F# min »), parce qu'une mauvaise tonalité est pire qu'aucune.
+ */
+export function findKey(text) {
+  const s = String(text ?? '');
+  let m = new RegExp(String.raw`(?:\bkey|tonalit[ée]|camelot)\s*[:=\-]?\s*(1[0-2]|[1-9])\s?([ab])\b`, 'i').exec(s);
+  if (m) return `${Number(m[1])}${m[2].toUpperCase()}`;
+  m = new RegExp(String.raw`(?:\bkey|tonalit[ée])\s*[:=\-]?\s*${KEY_BODY}(?![a-z])`, 'i').exec(s);
+  if (m) return parseKey(`${m[1]}${m[2]}${m[3] || ''}`);
+  m = /[(\[]\s*(1[0-2]|[1-9])([AB])\s*[)\]]/.exec(s);
+  if (m) return `${Number(m[1])}${m[2]}`;
+  m = /[(\[]\s*([A-G])([#♯b♭]?)m\s*[)\]]/.exec(s); // « (Am) », « [F#m] »
+  if (m) return parseKey(`${m[1]}${m[2]}m`);
+  m = new RegExp(String.raw`(?<![a-z])${KEY_BODY.replace('(minor|major|min|maj|m)?', '(minor|major|min|maj)')}(?![a-z])`, 'i').exec(s);
+  if (m) return parseKey(`${m[1]}${m[2]}${m[3]}`);
+  return null;
+}
+
+/** Tempo repéré dans un texte libre (« 128 bpm », « bpm: 128 »), entre 60 et 220. */
+export function findBpm(text) {
+  const s = String(text ?? '');
+  const m = /(\d{2,3}(?:[.,]\d+)?)\s*bpm\b/i.exec(s) || /\bbpm\s*[:=\-]?\s*(\d{2,3}(?:[.,]\d+)?)/i.exec(s);
+  const n = m ? parseFloat(m[1].replace(',', '.')) : NaN;
+  return n >= 60 && n <= 220 ? n : null;
 }
 
 export const labelOf = (t) => (t.artist ? `${t.artist} - ${t.title}` : t.title);
@@ -200,6 +258,7 @@ export function dedupe(tracks, threshold = 90, durationTol = 6) {
       if (!match.genre && t.genre) match.genre = t.genre;
       if (!match.tags.length && t.tags.length) match.tags = t.tags;
       if (match.bpm == null && t.bpm != null) match.bpm = t.bpm;
+      if (!match.key && t.key) match.key = t.key;
       dups.push({ removed: t, kept: match, reason });
     }
   }
@@ -324,6 +383,7 @@ function trackFromLine(line, source) {
   let url = '';
   let genre = '';
   let bpm = null;
+  let key = null;
   const inLabel = findUrls(label)[0];
   if (inLabel) {
     url = inLabel;
@@ -335,13 +395,15 @@ function trackFromLine(line, source) {
       url = url || u;
     } else if (/^\d{2,3}(?:[.,]\d+)?(?:\s*bpm)?$/i.test(p)) {
       bpm = parseFloat(p.replace(',', '.'));
+    } else if (!key && /^(?:(?:1[0-2]|[1-9])[ab]|[a-g][#♯b♭]?\s?(?:m|min|minor|maj|major))$/i.test(p)) {
+      key = parseKey(p);
     } else if (!genre && !/^(na|none|null)$/i.test(p)) {
       genre = p;
     }
   }
   if (!label) return url && !isPlaylistUrl(url) ? trackFromUrlOnly(url, source) : null;
   const [artist, title] = splitArtistTitle(label);
-  return title ? makeTrack({ artist, title, url, genre, bpm, source }) : null;
+  return title ? makeTrack({ artist, title, url, genre, bpm, key, source }) : null;
 }
 
 export function parseCsvRows(text) {
@@ -379,6 +441,7 @@ function fromCsv(text, source) {
   const iArtist = col('artiste', 'artist', 'uploader');
   const iGenre = col('genre soundcloud', 'genre');
   const iBpm = col('bpm');
+  const iKey = col('tonalite', 'tonalite camelot', 'key', 'camelot');
   const iUrl = col('lien', 'url', 'link');
   const iSrc = col('origine', 'source');
   const iId = col('id soundcloud', 'id');
@@ -388,7 +451,7 @@ function fromCsv(text, source) {
       const bpm = iBpm > -1 ? parseFloat((r[iBpm] || '').replace(',', '.')) : NaN;
       return makeTrack({
         title: r[iTitle], artist: iArtist > -1 ? r[iArtist] : '', genre: iGenre > -1 ? r[iGenre] : '',
-        bpm: Number.isFinite(bpm) ? bpm : null, url: iUrl > -1 ? r[iUrl] : '', source: (iSrc > -1 && r[iSrc]) || source,
+        bpm: Number.isFinite(bpm) ? bpm : null, key: iKey > -1 ? r[iKey] : null, url: iUrl > -1 ? r[iUrl] : '', source: (iSrc > -1 && r[iSrc]) || source,
         scid: iId > -1 ? scidOf(r[iId]) : null,
       });
     })
@@ -403,9 +466,12 @@ function fromEntry(e, source) {
   const [artist, title] = splitArtistTitle(e.title || '', e.uploader || e.artist || '');
   if (!title) return null;
   const genre = e.genre && !/^na$/i.test(e.genre) ? e.genre : '';
+  const free = [(e.tags || []).join(' '), e.title || '', e.desc || ''].join(' \n ');
+  const key = parseKey(e.key) || parseKey(e.key_signature) || findKey(free);
+  const bpm = typeof e.bpm === 'number' ? e.bpm : findBpm(free);
   return makeTrack({
-    title, artist, genre, url: e.webpage_url || e.url || '', scid: scidOf(e.id), art: typeof e.art === 'string' ? e.art : '', tags: Array.isArray(e.tags) ? e.tags : [],
-    duration: typeof e.duration === 'number' ? e.duration : null, bpm: typeof e.bpm === 'number' ? e.bpm : null, source,
+    key, title, artist, genre, url: e.webpage_url || e.url || '', scid: scidOf(e.id), art: typeof e.art === 'string' ? e.art : '', tags: Array.isArray(e.tags) ? e.tags : [],
+    duration: typeof e.duration === 'number' ? e.duration : null, bpm, source,
   });
 }
 
@@ -459,9 +525,9 @@ const csvCell = (v) => {
 const csvLine = (a) => a.map(csvCell).join(',');
 
 export function tracksToCsv(playlists) {
-  const lines = [csvLine(['Playlist', 'Artiste', 'Titre', 'Genre', 'BPM', 'Lien', 'Origine', 'Version', 'ID SoundCloud'])];
+  const lines = [csvLine(['Playlist', 'Artiste', 'Titre', 'Genre', 'BPM', 'Tonalité', 'Lien', 'Origine', 'Version', 'ID SoundCloud'])];
   for (const pl of playlists) {
-    for (const t of pl.tracks) lines.push(csvLine([pl.name, t.artist, t.title, t.genre, t.bpm ?? '', t.url, t.source, t.versionLabel, t.scid ?? '']));
+    for (const t of pl.tracks) lines.push(csvLine([pl.name, t.artist, t.title, t.genre, t.bpm ?? '', t.key ?? '', t.url, t.source, t.versionLabel, t.scid ?? '']));
   }
   return '﻿' + lines.join('\n') + '\n';
 }

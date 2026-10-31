@@ -226,3 +226,34 @@ test('set depuis deux playlists : fusion sans doublons, ordre DJ, titres isolés
   assert.equal(a.tracks.length, 4, 'les playlists d\'origine ne changent pas');
   assert.equal(L.deserialize(L.serialize([r.playlist]))[0].dj, true, 'le mode set est conservé');
 });
+
+// --- tonalité dans les sets ---
+test('keyLink : voisins, relatifs, à surveiller, opposés, inconnus', async () => {
+  const { keyLink } = await import('../js/library.js');
+  assert.equal(keyLink('8A', '8A').cost, 0);
+  assert.equal(keyLink('8A', '9A').cost, 0);
+  assert.equal(keyLink('12A', '1A').cost, 0, 'la roue boucle');
+  assert.match(keyLink('8A', '8B').label, /relatives/);
+  assert.equal(keyLink('8A', '10A').cost, 0.75);
+  assert.equal(keyLink('8A', '9B').cost, 0.75);
+  assert.equal(keyLink('8A', '2A').cost, 2.5);
+  assert.match(keyLink('8A', '2A').label, /s'opposent/);
+  assert.equal(keyLink('8A', null), null);
+  assert.equal(keyLink('', '8A'), null);
+});
+
+test('buildSet met les tonalités compatibles côte à côte et le dit sur chaque enchaînement', async () => {
+  const L = await import('../js/library.js');
+  const core = await import('../js/core.js');
+  const mk = (title, key) => core.makeTrack({ artist: title, title: `Morceau ${title}`, genre: 'House', key });
+  const tracks = [mk('A', '8A'), mk('B', '2A'), mk('C', '9A'), mk('D', '3A')];
+  const { ordered } = L.buildSet(tracks, { keepAll: true });
+  const keys = ordered.map((t) => t.key);
+  assert.deepEqual(keys.slice(0, 2), ['8A', '9A']);
+  assert.deepEqual(keys.slice(2).sort(), ['2A', '3A'], 'les deux tonalités voisines restent ensemble');
+  const tr = L.transitionsOf(ordered);
+  assert.match(tr[0].label, /tonalités voisines \(8A → 9A\)/);
+  assert.match(tr[1].label, /tonalités qui s'opposent/);
+  assert.equal(tr[1].tone, 'weak');
+  assert.match(tr[2].label, /tonalités voisines/);
+});
