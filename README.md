@@ -25,21 +25,36 @@ L'écran ressemble à une app de musique : un bouton **Ajouter une playlist**, e
 
 Les playlists restent dans ton navigateur : rien n'est envoyé à un serveur.
 
-## Sur le téléphone (synchro)
+## Sur tous tes appareils (compte Google)
 
-Les playlists sont gardées dans le navigateur de chaque appareil. Pour les retrouver ailleurs, clique sur **Sur mon téléphone** (sous les onglets, ou en bas de page) :
+Les playlists sont gardées dans le navigateur, puis copiées dans ton compte pour apparaître partout. Clique sur **Se connecter** (sous les onglets, ou en bas de page) et choisis ton compte Google, une fois par appareil. Ensuite, tout changement (ajout, nettoyage, suppression, ordre d'un set, tonalités) passe d'un appareil à l'autre : à l'ouverture de la page et quelques secondes après chaque modification. La clé GetSongBPM suit aussi le compte.
 
-1. Crée une clé GitHub (le lien prérempli coche déjà « gist ») et colle-la dans la fenêtre. L'app crée un **Gist privé** à ton nom qui contient ta bibliothèque.
-2. Copie le lien affiché et ouvre-le sur le téléphone, une fois. Les playlists apparaissent.
-3. Ensuite, tout changement fait d'un côté arrive de l'autre : à l'ouverture de la page, au retour sur l'onglet, et quelques secondes après chaque modification.
+Mise en place côté Firebase (projet `simpleplaylist-a386b`), une seule fois :
+1. **Authentication**, Méthode de connexion : activer **Google**.
+2. **Authentication**, Paramètres, Domaines autorisés : ajouter `dimitrilenet372-create.github.io`.
+3. **Firestore**, onglet Règles : coller les règles ci-dessous, puis Publier. Chaque compte ne lit et n'écrit que ses propres données.
 
-Le lien contient ta clé : ne le partage pas. Pour arrêter, **Arrêter la synchro sur cet appareil** (les playlists restent). Si les deux appareils changent la même chose en même temps, ce qui existe d'un côté et pas de l'autre est conservé, donc une playlist supprimée peut revenir. L'ajout d'une playlist par le favori reste à faire sur l'ordinateur (soundcloud.com) : le téléphone sert à retrouver, écouter et ordonner.
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
+```
+
+Si deux appareils modifient la même playlist en même temps, la dernière version envoyée gagne. Une playlist supprimée sur un appareil l'est partout. Se déconnecter laisse les playlists sur l'appareil. L'ajout d'une playlist par le favori reste à faire sur l'ordinateur (soundcloud.com) : le téléphone sert à retrouver, écouter et ordonner.
 
 ## Tonalité et BPM sur chaque ligne
 
 SoundCloud ne donne la tonalité et le tempo que si l'artiste les a écrits. Pour les autres, l'app les cherche toute seule dans [GetSongBPM](https://getsongbpm.com), une base gratuite : dès qu'une playlist est ajoutée ou ouverte, les lignes se remplissent (« … » pendant la recherche, puis par exemple `8A` et `126 BPM`).
 
-Il faut une seule chose, une fois : une **clé gratuite**, à demander sur getsongbpm.com/api (elle arrive par e-mail) et à coller dans l'app. Avec la synchro « Sur mon téléphone », la clé suit sur le téléphone.
+Il faut une seule chose, une fois : une **clé gratuite**, à demander sur getsongbpm.com/api (elle arrive par e-mail) et à coller dans l'app. Avec la connexion Google, la clé suit sur tes autres appareils.
 
 - Les remixes et edits sont ignorés (leur tonalité peut différer de l'original), et les valeurs que tu as déjà saisies ne sont jamais écrasées.
 - Les tonalités trouvées ont une bordure en pointillés : à vérifier à l'oreille.
