@@ -6,7 +6,7 @@ import * as KY from './keys.js';
 import * as SE from './serato.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
-const VERSION = '2026-10-31-m';
+const VERSION = '2026-10-31-n';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
