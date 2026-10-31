@@ -298,3 +298,6 @@ body.has-player .toast { bottom: 108px; }
   .sheet { align-items: end; padding: 0; }
   .sheet-panel { border-radius: 22px 22px 0 0; max-height: 92vh; }
 }
+
+.foot { margin: 48px 0 0; color: var(--muted); font-size: 0.8125rem; }
+#stale { color: var(--warn); font-weight: 700; }

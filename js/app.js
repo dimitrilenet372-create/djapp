@@ -3,6 +3,7 @@ import * as L from './library.js';
 import { SAMPLE_A, SAMPLE_2 } from './sample.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
+const VERSION = '2026-10-31-e';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -709,5 +710,8 @@ $('#sheet-body').addEventListener('submit', async (e) => {
 });
 
 // --------------------------------------------------------------------------- //
+$('#version').textContent = VERSION;
+const pageVersion = document.querySelector('meta[name="app-version"]');
+$('#stale').hidden = !pageVersion || pageVersion.content === VERSION;
 setView('home');
 handleImport();

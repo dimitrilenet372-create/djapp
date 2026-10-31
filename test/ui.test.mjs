@@ -55,6 +55,16 @@ const open = (i) => click($('.card-open', cards()[i]));
 const sheetOpen = () => !$('#sheet').hidden;
 const stored = () => JSON.parse(window.localStorage.getItem('lebac.v2') || '{"playlists":[]}').playlists;
 
+test('la version est affichée et cohérente avec la page', () => {
+  assert.match($('#version').textContent, /^\d{4}-\d{2}-\d{2}-\w+$/);
+  assert.equal($('#version').textContent, document.querySelector('meta[name="app-version"]').content);
+  assert.equal($('#stale').hidden, true);
+  const idx = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const v = $('#version').textContent;
+  assert.ok(idx.includes(`js/app.js?v=${v}`) && idx.includes(`style.css?v=${v}`), 'adresses des scripts versionnées');
+  for (const m of ['app', 'core', 'library', 'bookmarklet', 'sample']) assert.ok(idx.includes(`"./js/${m}.js": "./js/${m}.js?v=${v}"`), m);
+});
+
 test('au départ : un seul bouton, aucune playlist, un exemple proposé', () => {
   assert.equal($('#start').hidden, false);
   assert.equal(cards().length, 0);
