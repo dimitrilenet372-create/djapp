@@ -83,6 +83,20 @@ main { max-width: 1240px; margin: 0 auto; padding: clamp(24px, 4vw, 44px) var(--
 /* ---------- accueil : pochettes ---------- */
 .start { max-width: 46ch; display: grid; gap: 10px; justify-items: start; }
 .start p { margin: 0; font-size: 1.125rem; }
+.home-tabs { display: flex; gap: 6px; margin: 0 0 22px; border-bottom: 2px solid var(--line); }
+.home-tabs button {
+  display: inline-flex; align-items: baseline; gap: 8px; padding: 8px 14px 10px; margin-bottom: -2px; cursor: pointer;
+  border: 0; border-bottom: 3px solid transparent; background: none; color: var(--muted);
+  font: inherit; font-size: 1.0625rem; font-weight: 800;
+}
+.home-tabs button:hover { color: var(--ink); }
+.home-tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--klein); }
+.home-tabs .n { font-size: 0.8125rem; font-weight: 700; color: var(--muted); }
+#tab-empty { margin: 0 0 20px; }
+.card.is-set .card-name::before {
+  content: 'SET'; display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 4px; vertical-align: 2px;
+  background: var(--hot); color: #fff; font-size: 0.6875rem; font-weight: 800; letter-spacing: 0.04em;
+}
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 28px 22px; }
 .card { position: relative; min-width: 0; }
 .card-open {

@@ -3,7 +3,7 @@ import * as L from './library.js';
 import { SAMPLE_A, SAMPLE_2 } from './sample.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
-const VERSION = '2026-10-31-g';
+const VERSION = '2026-10-31-h';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -20,6 +20,7 @@ const STORE = 'lebac.v2';
 const state = {
   lib: [],
   view: 'home', // 'home' | 'detail'
+  tab: 'playlists', // 'playlists' | 'sets'
   id: null,
   picked: new Set(),
   notice: null, // { text, undo?: { id, tracks }, confirmDelete?: true }
@@ -128,23 +129,50 @@ function metaOf(pl) {
   return `${plural(pl.tracks.length, 'titre', 'titres')}${dur ? ` · ${L.formatDuration(dur)}` : ''}`;
 }
 
+const tabOf = (pl) => (pl.dj ? 'sets' : 'playlists');
+const TAB_EMPTY = {
+  playlists: "Aucune playlist ici. Les sets sont dans l'onglet « Sets DJ ».",
+  sets: 'Aucun set pour l\'instant. Choisis deux playlists avec « Choisir », puis clique sur « Créer un set DJ », ou ouvre une playlist et clique sur « Ordonner pour DJer ».',
+};
+
 let firstHome = true;
 function renderHome() {
   const grid = $('#grid');
-  $('#start').hidden = state.lib.length > 0;
-  grid.classList.toggle('fresh', firstHome && state.lib.length > 0);
+  const empty = state.lib.length === 0;
+  const counts = { playlists: state.lib.filter((p) => !p.dj).length, sets: state.lib.filter((p) => p.dj).length };
+  $('#start').hidden = !empty;
+  $('#tabs').hidden = empty;
+  for (const b of document.querySelectorAll('#tabs [data-tab]')) {
+    const on = b.dataset.tab === state.tab;
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;
+  }
+  $('#n-playlists').textContent = counts.playlists;
+  $('#n-sets').textContent = counts.sets;
+  const shown = state.lib.filter((p) => tabOf(p) === state.tab);
+  $('#tab-empty').hidden = empty || shown.length > 0;
+  $('#tab-empty').textContent = TAB_EMPTY[state.tab];
+  grid.setAttribute('aria-labelledby', `tab-${state.tab}`);
+  grid.classList.toggle('fresh', firstHome && shown.length > 0);
   firstHome = false;
-  grid.innerHTML = state.lib
+  grid.innerHTML = shown
     .map((pl, i) => {
       const on = state.picked.has(pl.id);
-      return `<article class="card${on ? ' is-picked' : ''}" data-id="${pl.id}" style="--i:${Math.min(i, 10)}">
-        <button type="button" class="card-open" data-act="open" aria-label="Ouvrir ${esc(pl.name)}">${coverHtml(pl)}
+      return `<article class="card${on ? ' is-picked' : ''}${pl.dj ? ' is-set' : ''}" data-id="${pl.id}" style="--i:${Math.min(i, 10)}">
+        <button type="button" class="card-open" data-act="open" aria-label="Ouvrir ${pl.dj ? 'le set ' : ''}${esc(pl.name)}">${coverHtml(pl)}
           <p class="card-name">${esc(pl.name)}</p><p class="card-meta">${esc(metaOf(pl))}</p></button>
-        <button type="button" class="pick" data-act="pick" aria-pressed="${on}" aria-label="Choisir ${esc(pl.name)} pour comparer ou fusionner">${on ? '✓ Choisie' : 'Choisir'}</button>
+        <button type="button" class="pick" data-act="pick" aria-pressed="${on}" aria-label="Choisir ${esc(pl.name)} pour comparer, fusionner ou créer un set">${on ? '✓ Choisie' : 'Choisir'}</button>
       </article>`;
     })
     .join('');
   renderHomebar();
+}
+
+function setTab(tab) {
+  if (state.tab === tab) return;
+  state.tab = tab;
+  state.picked.clear();
+  renderHome();
 }
 
 function renderHomebar() {
@@ -248,6 +276,13 @@ function renderDetail() {
         .join('')
     : '<li class="tracks-empty">Cette playlist est vide.</li>';
   renderNotice();
+}
+
+/** Au retour sur l'accueil, on retrouve l'onglet de l'élément qu'on vient de quitter (playlist ou set). */
+function leaveDetail() {
+  const pl = current();
+  if (pl) state.tab = tabOf(pl);
+  setView('home');
 }
 
 function setView(view, id = null) {
@@ -399,6 +434,7 @@ function makeSet(ids) {
   }
   saveSoon();
   closeSheet();
+  state.tab = 'sets';
   setView('detail', r.playlist.id);
   const parts = [
     `Set de ${plural(r.playlist.tracks.length, 'titre', 'titres')} à partir de ${pls.length} playlists`,
@@ -606,9 +642,19 @@ $('#p-close').addEventListener('click', () => {
 // --------------------------------------------------------------------------- //
 // Événements
 // --------------------------------------------------------------------------- //
+$('#tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tab]');
+  if (b) setTab(b.dataset.tab);
+});
+$('#tabs').addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  const next = state.tab === 'playlists' ? 'sets' : 'playlists';
+  setTab(next);
+  $(`#tab-${next}`).focus();
+});
 $('#add').addEventListener('click', () => addSheet());
 $('#start-demo').addEventListener('click', loadSample);
-$('#back').addEventListener('click', () => setView('home'));
+$('#back').addEventListener('click', leaveDetail);
 $('#sheet-x').addEventListener('click', closeSheet);
 $('#sheet').addEventListener('click', (e) => {
   if (e.target === $('#sheet')) closeSheet();
@@ -689,6 +735,7 @@ $('#split').addEventListener('click', () => {
     state.lib.push(p);
   }
   saveSoon();
+  state.tab = 'playlists';
   setView('home');
   toast(`${plural(parts.length, 'playlist créée', 'playlists créées')} par style, à partir de « ${pl.name} ».`, 4500);
 });

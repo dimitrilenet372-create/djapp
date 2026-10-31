@@ -25,6 +25,10 @@ L'écran ressemble à une app de musique : un bouton **Ajouter une playlist**, e
 
 Les playlists restent dans ton navigateur : rien n'est envoyé à un serveur.
 
+## Playlists et sets
+
+L'accueil a deux onglets : **Playlists** (tes playlists) et **Sets DJ** (les playlists ordonnées pour le DJ, repérées par une pastille SET). Un set créé s'ouvre dans son onglet ; une playlist passe dans **Sets DJ** dès que tu l'ordonne pour DJer.
+
 ## Créer un set DJ
 
 1. Sur l'accueil, choisis deux playlists (ou plus) avec le bouton **Choisir**, puis **Créer un set DJ**.

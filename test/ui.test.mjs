@@ -51,6 +51,7 @@ const wait = (ms = 20) => new Promise((r) => setTimeout(r, ms));
 const cards = () => $$('.card');
 const rows = () => $$('.trk');
 const names = () => cards().map((c) => $('.card-name', c).textContent);
+const tab = (name) => click($(`#tab-${name}`));
 const open = (i) => click($('.card-open', cards()[i]));
 const sheetOpen = () => !$('#sheet').hidden;
 const stored = () => JSON.parse(window.localStorage.getItem('lebac.v2') || '{"playlists":[]}').playlists;
@@ -387,7 +388,9 @@ test('créer un set DJ à partir de deux playlists', async () => {
   await wait(40);
   const a = cards().findIndex((c) => $('.card-name', c).textContent === 'Set A');
   const b = cards().findIndex((c) => $('.card-name', c).textContent === 'Set B');
+  assert.equal($('#tab-sets').getAttribute('aria-selected'), 'false');
   const count = cards().length;
+  const setsBefore = Number($('#n-sets').textContent);
   click($('.pick', cards()[a]));
   click($('.pick', cards()[b]));
   assert.equal($('#hb-set').hidden, false);
@@ -411,11 +414,20 @@ test('créer un set DJ à partir de deux playlists', async () => {
   assert.match($('#pl-meta').textContent, /1 enchaînement à préparer/);
   assert.equal($('#order').textContent, 'Réordonner le set');
   click($('#back'));
-  assert.equal(cards().length, count + 2, 'le set et la playlist « À part »');
+  assert.equal($('#tab-sets').getAttribute('aria-selected'), 'true', 'retour sur l\'onglet des sets');
+  assert.equal(cards().length, setsBefore + 1);
+  assert.deepEqual(names().filter((n) => n.startsWith('Set ·')), ['Set · Set A + Set B']);
+  assert.ok($('.card', $('#grid')).classList.contains('is-set'));
+  assert.equal(Number($('#n-sets').textContent), setsBefore + 1);
+  assert.equal(Number($('#n-playlists').textContent), count + 1, 'playlists : les deux d\'origine + « À part »');
+  tab('playlists');
+  assert.equal(cards().length, count + 1);
   assert.ok(names().includes('À part · Set A + Set B'));
+  assert.ok(!names().includes('Set · Set A + Set B'), 'le set n\'est pas dans l\'onglet playlists');
 });
 
 test('set : monter / descendre un titre, réordonner, annuler', () => {
+  tab('sets');
   open(cards().findIndex((c) => $('.card-name', c).textContent === 'Set · Set A + Set B'));
   const first = $('.trk-title', rows()[0]).textContent;
   const second = $('.trk-title', rows()[1]).textContent;
@@ -437,6 +449,7 @@ test('set : monter / descendre un titre, réordonner, annuler', () => {
 });
 
 test('« Ordonner pour DJer » sur une playlist ordinaire la passe en mode set', () => {
+  tab('playlists');
   open(cards().findIndex((c) => $('.card-name', c).textContent === 'Set B'));
   assert.equal($('#tracks').classList.contains('is-set'), false);
   assert.equal($$('.gap').length, 0);
@@ -492,7 +505,7 @@ test('lien de playlist collé : message clair, pas de plantage', async () => {
 test('les playlists sont enregistrées dans le navigateur et se rechargent', async () => {
   await wait(300);
   const saved = stored();
-  assert.equal(saved.length, cards().length);
+  assert.equal(saved.length, Number($('#n-playlists').textContent) + Number($('#n-sets').textContent));
   assert.ok(saved.some((p) => p.name === 'Chill é' && p.art === 'artworks-cover-z' && p.tracks[0].scid === 11));
 });
 
