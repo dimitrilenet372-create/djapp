@@ -141,3 +141,88 @@ test('DJ : même style dans la playlist, tempo proche quand il est connu', () =>
   const p3 = pl('P3', [unk, near]);
   assert.equal(L.relatedTracks([p3], p3, unk).similar.length, 0);
 });
+
+// --------------------------------------------------------------------------- //
+// Set DJ
+// --------------------------------------------------------------------------- //
+const dj = (n, genre, extra = {}) => tr(`DJ ${n} - Morceau ${n}`, { genre, ...extra });
+
+test('set : les styles voisins se suivent, les sauts de style sont signalés', () => {
+  const h1 = dj('h1', 'House'); const h2 = dj('h2', 'House'); const t1 = dj('t1', 'Techno'); const t2 = dj('t2', 'Techno');
+  const d1 = dj('d1', 'Drum & Bass'); const d2 = dj('d2', 'Drum & Bass');
+  // mélangés exprès
+  const { ordered, weak } = L.buildSet([h1, d1, t1, h2, d2, t2], { keepAll: true });
+  const styles = ordered.map((t) => core.detectStyle(t));
+  const changes = styles.filter((s, i) => i && s !== styles[i - 1]).length;
+  assert.equal(changes, 2, `trois blocs de style seulement : ${styles}`);
+  assert.equal(ordered[0].id, h1.id, 'on part du premier titre');
+  assert.ok(weak <= 1, 'un seul vrai saut : de la techno à la drum & bass');
+  const trans = L.transitionsOf(ordered);
+  assert.equal(trans.length, 5);
+  assert.ok(trans.some((t) => t.tone === 'weak' && /changement de style/.test(t.label)));
+  assert.ok(trans.some((t) => t.tone === 'good' && /même style/.test(t.label)));
+});
+
+test('set : une version se place juste à côté de son titre', () => {
+  const a = tr('Eric Prydz - Pjanoo', { genre: 'House' });
+  const b = dj('b', 'House');
+  const c = dj('c', 'House');
+  const a2 = tr('Eric Prydz - Pjanoo (Club Edit)', { genre: 'House' });
+  const { ordered } = L.buildSet([a, b, c, a2], { keepAll: true });
+  assert.equal(Math.abs(ordered.indexOf(a) - ordered.indexOf(a2)), 1);
+  const t = L.transitionsOf(ordered);
+  assert.ok(t.some((x) => x.label === 'versions du même titre' && x.tone === 'good'));
+});
+
+test('set : le tempo est utilisé quand il est connu, moitié/double reconnu', () => {
+  const x = dj('x', 'House', { bpm: 124 });
+  const near = dj('near', 'House', { bpm: 125 });
+  const adjust = dj('adj', 'House', { bpm: 130 });
+  const half = dj('half', 'House', { bpm: 62 });
+  const far = dj('far', 'House', { bpm: 150 });
+  const label = (a, b) => L.transitionsOf([a, b])[0];
+  assert.match(label(x, near).label, /tempo proche \(124 → 125 BPM\)/);
+  assert.match(label(x, adjust).label, /tempo à ajuster/);
+  assert.match(label(x, half).label, /moitié\/double/);
+  assert.equal(label(x, far).tone, 'weak');
+  assert.match(label(x, far).label, /écart de tempo/);
+  // le plus proche passe en premier
+  const { ordered } = L.buildSet([x, far, near], { keepAll: true });
+  assert.deepEqual(ordered.map((t) => t.id), [x.id, near.id, far.id]);
+});
+
+test('set : les titres isolés sont mis de côté, sauf si on garde tout', () => {
+  const house = [dj('1', 'House'), dj('2', 'House'), dj('3', 'House')];
+  const techno = [dj('4', 'Techno'), dj('5', 'Techno')];
+  const lonely = dj('rap', 'Hip-hop & Rap');
+  const unknown = dj('inconnu', '');
+  const set = L.buildSet([...house, lonely, ...techno, unknown]);
+  assert.deepEqual(set.aside.map((t) => t.id), [lonely.id]);
+  assert.equal(set.ordered.length, 6);
+  assert.ok(set.ordered.includes(unknown), 'style inconnu : on garde');
+  assert.equal(L.buildSet([...house, lonely, ...techno], { keepAll: true }).aside.length, 0);
+  // sélection sans style dominant : rien n'est écarté
+  const mixed = [dj('a', 'Jazz'), dj('b', 'Hip-hop & Rap'), dj('c', 'Drum & Bass')];
+  assert.equal(L.buildSet(mixed).aside.length, 0);
+});
+
+test('set : point de départ au choix, aucune perte de titre', () => {
+  const tracks = Array.from({ length: 12 }, (_, i) => dj(String(i), i % 2 ? 'House' : 'Techno'));
+  const set = L.buildSet(tracks, { startId: tracks[5].id, keepAll: true });
+  assert.equal(set.ordered[0].id, tracks[5].id);
+  assert.deepEqual(set.ordered.map((t) => t.id).sort((a, b) => a - b), tracks.map((t) => t.id).sort((a, b) => a - b));
+});
+
+test('set depuis deux playlists : fusion sans doublons, ordre DJ, titres isolés dans une playlist à part', () => {
+  const a = pl('Soirée', [dj('1', 'House'), dj('2', 'House'), dj('3', 'Techno'), dj('rap', 'Hip-hop & Rap')]);
+  const b = pl('Warm-up', [tr('DJ 1 - Morceau 1 (Original Mix)', { genre: 'House' }), dj('4', 'Techno'), dj('5', 'House')]);
+  const r = L.buildSetFrom([a, b], 'Set · Soirée + Warm-up');
+  assert.equal(r.total, 7);
+  assert.equal(r.removed, 1);
+  assert.equal(r.playlist.dj, true);
+  assert.equal(r.playlist.tracks.length, 5);
+  assert.equal(r.aside.tracks.length, 1);
+  assert.equal(r.aside.name, 'À part · Soirée + Warm-up');
+  assert.equal(a.tracks.length, 4, 'les playlists d\'origine ne changent pas');
+  assert.equal(L.deserialize(L.serialize([r.playlist]))[0].dj, true, 'le mode set est conservé');
+});

@@ -354,6 +354,113 @@ test('idées d\'enchaînement : autres versions puis même style, « jouer ensui
   click($('#back'));
 });
 
+test('toute la ligne lance la musique, pas les boutons qu\'elle contient', async () => {
+  const payload = (name, tracks) => '#import=' + Buffer.from(JSON.stringify({ v: 1, name, tracks }), 'utf8').toString('base64url');
+  window.location.hash = payload('Ligne', [
+    { id: 31, title: 'Un - Premier', genre: 'House' },
+    { id: 32, title: 'Deux - Second', genre: 'House', webpage_url: 'https://soundcloud.com/deux/second' },
+  ]);
+  await wait(40);
+  open(cards().length - 1);
+  const before = widgets[0].loaded.length;
+  click($('.trk-main', rows()[1]));
+  await wait();
+  assert.equal($('#p-title').textContent, 'Second');
+  assert.equal(widgets[0].loaded.length, before + 1);
+  const n = widgets[0].loaded.length;
+  click($('[data-act="remove-track"]', rows()[0]));
+  await wait();
+  assert.equal(widgets[0].loaded.length, n, 'le × retire le titre sans lancer la musique');
+  click($('[data-act="undo"]'));
+  click($('.open', rows()[1]));
+  assert.equal(widgets[0].loaded.length, n, 'le lien ouvrir ne lance pas non plus le lecteur');
+  click($('#p-close'));
+  click($('#back'));
+});
+
+test('créer un set DJ à partir de deux playlists', async () => {
+  const payload = (name, tracks) => '#import=' + Buffer.from(JSON.stringify({ v: 1, name, tracks }), 'utf8').toString('base64url');
+  const t = (id, title, genre) => ({ id, title, genre });
+  window.location.hash = payload('Set A', [t(41, 'A1 - Morceau un', 'House'), t(42, 'A2 - Morceau deux', 'Drum & Bass'), t(43, 'A3 - Morceau trois', 'House'), t(44, 'A4 - Seul au monde', 'Hip-hop & Rap')]);
+  await wait(40);
+  window.location.hash = payload('Set B', [t(45, 'B1 - Morceau quatre', 'Drum & Bass'), t(46, 'B2 - Morceau cinq', 'House'), t(47, 'A1 - Morceau un (Original Mix)', 'House'), t(48, 'B3 - Morceau six', 'Drum & Bass')]);
+  await wait(40);
+  const a = cards().findIndex((c) => $('.card-name', c).textContent === 'Set A');
+  const b = cards().findIndex((c) => $('.card-name', c).textContent === 'Set B');
+  const count = cards().length;
+  click($('.pick', cards()[a]));
+  click($('.pick', cards()[b]));
+  assert.equal($('#hb-set').hidden, false);
+  click($('#hb-set'));
+
+  assert.equal($('#detail').hidden, false);
+  assert.equal($('#pl-name').value, 'Set · Set A + Set B');
+  assert.match($('#notice').textContent, /Set de 6 titres à partir de 2 playlists/);
+  assert.match($('#notice').textContent, /1 doublon retiré/);
+  assert.match($('#notice').textContent, /1 titre mis de côté dans « À part · Set A \+ Set B »/);
+  assert.equal(rows().length, 6);
+  assert.ok($('#tracks').classList.contains('is-set'));
+  // 6 titres = 5 enchaînements décrits, dont les styles regroupés (house ensemble, drum & bass ensemble)
+  assert.equal($$('.gap').length, 5);
+  const titles = rows().map((r) => $('.trk-title', r).textContent);
+  const styleOf = (title) => (/un|trois|cinq/.test(title) ? 'H' : 'D');
+  const seq = titles.map(styleOf).join('');
+  assert.ok(/^H+D+$|^D+H+$/.test(seq), `blocs de style : ${seq} (${titles})`);
+  assert.equal($$('.gap-weak').length, 1, 'un seul saut de style, signalé');
+  assert.match($('.gap-weak').textContent, /^À préparer · changement de style/);
+  assert.match($('#pl-meta').textContent, /1 enchaînement à préparer/);
+  assert.equal($('#order').textContent, 'Réordonner le set');
+  click($('#back'));
+  assert.equal(cards().length, count + 2, 'le set et la playlist « À part »');
+  assert.ok(names().includes('À part · Set A + Set B'));
+});
+
+test('set : monter / descendre un titre, réordonner, annuler', () => {
+  open(cards().findIndex((c) => $('.card-name', c).textContent === 'Set · Set A + Set B'));
+  const first = $('.trk-title', rows()[0]).textContent;
+  const second = $('.trk-title', rows()[1]).textContent;
+  click($('[data-act="move-down"]', rows()[0]));
+  assert.equal($('.trk-title', rows()[0]).textContent, second);
+  assert.equal($('.trk-title', rows()[1]).textContent, first);
+  click($('[data-act="move-up"]', rows()[1]));
+  assert.equal($('.trk-title', rows()[0]).textContent, first);
+  click($('[data-act="move-up"]', rows()[0])); // déjà en haut : rien
+  assert.equal($('.trk-title', rows()[0]).textContent, first);
+  // tout mélanger à la main, puis « Réordonner »
+  for (let i = 0; i < 3; i++) click($('[data-act="move-down"]', rows()[i]));
+  click($('#order'));
+  assert.match($('#notice').textContent, /Mis en ordre pour le DJ/);
+  assert.equal(rows().length, 6);
+  click($('[data-act="undo"]'));
+  assert.equal(rows().length, 6);
+  click($('#back'));
+});
+
+test('« Ordonner pour DJer » sur une playlist ordinaire la passe en mode set', () => {
+  open(cards().findIndex((c) => $('.card-name', c).textContent === 'Set B'));
+  assert.equal($('#tracks').classList.contains('is-set'), false);
+  assert.equal($$('.gap').length, 0);
+  assert.equal($('#order').textContent, 'Ordonner pour DJer');
+  click($('#order'));
+  assert.ok($('#tracks').classList.contains('is-set'));
+  assert.equal($$('.gap').length, 3);
+  click($('[data-act="undo"]'));
+  assert.equal($('#tracks').classList.contains('is-set'), false, 'annuler enlève aussi le mode set');
+  click($('#back'));
+});
+
+test('idées : lien vers les sons similaires de SoundCloud', async () => {
+  open(cards().findIndex((c) => $('.card-name', c).textContent === 'Ligne'));
+  click($('.trk-main', rows()[1]));
+  await wait();
+  click($('#p-ideas'));
+  assert.equal($('#sheet-body a[href$="/recommended"]').href, 'https://soundcloud.com/deux/second/recommended');
+  assert.match($('#sheet-body').textContent, /Trouver de nouveaux sons/);
+  click($('#sheet-x'));
+  click($('#p-close'));
+  click($('#back'));
+});
+
 test('un titre piégé n\'injecte pas de HTML', async () => {
   click($('#add'));
   type($('#paste-name'), '<b>gras</b>');

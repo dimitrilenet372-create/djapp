@@ -17,7 +17,7 @@ Pour l'essayer en local : `npx serve .` puis ouvre l'adresse affichée. Les modu
 
 L'écran ressemble à une app de musique : un bouton **Ajouter une playlist**, et dessous tes playlists en pochettes.
 
-1. **Ajouter.** Le bouton ouvre deux étapes : glisse le favori **Ajouter à Le bac** dans ta barre de favoris (une seule fois), puis ouvre ta playlist sur soundcloud.com et clique dessus. Elle arrive dans l'app avec ses pochettes. Le favori lit aussi un titre seul et ta page **Likes** (profil, onglet Likes) : tes titres aimés deviennent une playlist « Likes de … », jusqu'à plusieurs milliers de titres. Sinon, tu peux coller des titres ou importer un fichier.
+1. **Ajouter.** Le bouton ouvre deux étapes : glisse le favori **Ajouter à Le bac** dans ta barre de favoris (une seule fois), puis ouvre ta playlist sur soundcloud.com et clique dessus. Elle arrive dans l'app avec ses pochettes. Le favori lit aussi un titre seul, la page « Sons similaires » d'un titre et ta page **Likes** (profil, onglet Likes) : tes titres aimés deviennent une playlist « Likes de … », jusqu'à plusieurs milliers de titres. Sinon, tu peux coller des titres ou importer un fichier.
 2. **Entrer dans une playlist.** Les doublons sont barrés et marqués. **Retirer N doublons** les enlève d'un clic (le premier exemplaire est gardé), avec un bouton Annuler. Le × retire un titre, le nom se modifie au clic. Les remix, edits et bootlegs d'un même titre sont reliés par un badge : ce ne sont pas des doublons.
 3. **Comparer ou fusionner.** Sur l'accueil, le rond en haut à droite d'une pochette sélectionne une playlist. Avec deux choisies : **Comparer** (en commun, seulement dans l'une, seulement dans l'autre) ou **Fusionner** (une nouvelle playlist sans doublons). Les originales ne changent pas.
 4. **Ranger par style** découpe une playlist en playlists de même style (house, techno, drum & bass…), pratique pour préparer des sets.
@@ -25,9 +25,19 @@ L'écran ressemble à une app de musique : un bouton **Ajouter une playlist**, e
 
 Les playlists restent dans ton navigateur : rien n'est envoyé à un serveur.
 
+## Créer un set DJ
+
+1. Sur l'accueil, choisis deux playlists (ou plus) avec le bouton **Choisir**, puis **Créer un set DJ**.
+2. L'app les réunit sans doublons et met les titres dans un ordre qui s'enchaîne : on part du premier titre, puis on prend à chaque fois celui qui se mixe le mieux avec le précédent. Une version d'un titre (remix, edit) se place juste à côté de l'original.
+3. Entre chaque titre, une ligne dit pourquoi ils vont ensemble (même style, style voisin, tempo proche) et signale en orange **À préparer** les vrais changements de style ou de tempo, là où il faut préparer la transition.
+4. Les titres qui ne vont avec aucun autre (par exemple un seul rap dans une sélection house et techno) sont mis dans une playlist **À part**, pour ne pas casser le set. Rien n'est supprimé.
+5. Ajuste à la main avec ▲ et ▼, ou clique sur **Réordonner le set**. **Ordonner pour DJer** fait la même chose sur une playlist ordinaire. Puis **Recréer sur SoundCloud** pour garder l'ordre sur ton compte.
+
+Ce qui sert à juger : le style (genre SoundCloud, tags, titre) et, quand il est indiqué, le tempo (BPM). SoundCloud ne fournit ni la tonalité ni, le plus souvent, le tempo : sans tempo l'ordre repose sur le style seulement, et c'est écrit sur la ligne. Les sons à proposer viennent de SoundCloud : **Idées d'enchaînement** donne le lien « Sons similaires » du titre ; ouvre-le puis clique sur le favori pour les ajouter comme une playlist, à fusionner dans ton set.
+
 ## Écouter et enchaîner
 
-- **Lecteur.** Clique sur la pochette d'un titre pour l'écouter : un lecteur apparaît en bas (précédent, pause, suivant) et enchaîne les titres de la playlist, doublons exceptés. C'est le lecteur officiel de SoundCloud : il ne joue que les titres que leurs artistes autorisent hors de SoundCloud. Pour les autres, ouvre le titre sur SoundCloud (lien dans le lecteur). Un titre sans lien ni identifiant SoundCloud n'a pas de bouton d'écoute.
+- **Lecteur.** Clique sur un titre (n'importe où sur sa ligne) pour l'écouter : un lecteur apparaît en bas (précédent, pause, suivant) et enchaîne les titres de la playlist, doublons exceptés. C'est le lecteur officiel de SoundCloud : il ne joue que les titres que leurs artistes autorisent hors de SoundCloud. Pour les autres, ouvre le titre sur SoundCloud (lien dans le lecteur). Un titre sans lien ni identifiant SoundCloud n'a pas de bouton d'écoute.
 - **Idées d'enchaînement.** Dans le lecteur, ce bouton liste les autres versions du titre écouté (original, remix, edit) trouvées dans toutes tes playlists, avec un lien pour chercher ses remixes sur SoundCloud, puis les titres de la même playlist au même style. Le tempo n'est utilisé que s'il est indiqué (SoundCloud ne le fournit pas toujours) ; la tonalité n'est pas disponible. **Jouer ensuite** place le titre juste après celui en cours.
 
 ## Recréer une playlist sur SoundCloud

@@ -60,7 +60,16 @@ export async function extractor(win, appUrl) {
     let kind;
     let data = {};
     const likes = /^\/([^/]+)\/likes$/.exec(win.location.pathname.replace(/\/+$/, ''));
-    if (likes) {
+    const rec = /^(\/[^/]+\/[^/]+)\/recommended$/.exec(win.location.pathname.replace(/\/+$/, ''));
+    if (rec) {
+      // page « Sons similaires » d'un titre : on lit les titres que SoundCloud propose
+      kind = 'related';
+      const base = await get('resolve', { url: win.location.origin + rec[1] });
+      if (!base || base.kind !== 'track' || !base.id) return fail('titre introuvable pour cette page de sons similaires.');
+      const j = await get('tracks/' + base.id + '/related', { limit: '50' });
+      tracks = (Array.isArray(j) ? j : (j && j.collection) || []).map((it) => (it && it.track) || it).filter((t) => t && t.id);
+      name = 'Similaires à ' + (base.title || 'ce titre');
+    } else if (likes) {
       // page « Likes » : titres aimés, par pages de 100 (SoundCloud donne l'adresse de la suivante)
       kind = 'likes';
       let user;
@@ -100,7 +109,7 @@ export async function extractor(win, appUrl) {
         tracks = [data];
         name = data.title;
       } else {
-        return fail("cette page n'est ni une playlist, ni un titre, ni une page Likes.");
+        return fail("cette page n'est ni une playlist, ni un titre, ni une page Likes, ni des sons similaires.");
       }
     }
 
@@ -132,7 +141,7 @@ export async function extractor(win, appUrl) {
     }));
     if (!out.length) return fail('aucun titre trouvé (playlist vide ou privée).');
 
-    const json = JSON.stringify({ v: 1, name: name || 'Playlist SoundCloud', art: kind === 'track' || kind === 'likes' ? '' : art(data.artwork_url), tracks: out });
+    const json = JSON.stringify({ v: 1, name: name || 'Playlist SoundCloud', art: kind === 'track' || kind === 'likes' || kind === 'related' ? '' : art(data.artwork_url), tracks: out });
     const b64 = win
       .btoa(unescape(encodeURIComponent(json)))
       .replace(/\+/g, '-')

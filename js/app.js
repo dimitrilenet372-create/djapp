@@ -3,7 +3,7 @@ import * as L from './library.js';
 import { SAMPLE_A, SAMPLE_2 } from './sample.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
-const VERSION = '2026-10-31-f';
+const VERSION = '2026-10-31-g';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -154,6 +154,7 @@ function renderHomebar() {
   $('#homebar-text').textContent = n === 1 ? '1 playlist choisie. Choisis-en une autre pour comparer ou fusionner.' : `${n} playlists choisies`;
   $('#hb-compare').hidden = n !== 2;
   $('#hb-merge').hidden = n < 2;
+  $('#hb-set').hidden = n < 2;
 }
 
 // --------------------------------------------------------------------------- //
@@ -171,7 +172,7 @@ function dupsOf(pl) {
 const OPEN_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
 
-function rowHtml(t, dup) {
+function rowHtml(t, dup, dj = false) {
   const shown = t.familyId ? core.parseVersion(t.title).base || t.title : t.title;
   const badge = dup
     ? `<span class="badge is-dup" title="Même titre que « ${esc(core.labelOf(dup.kept))} » (${esc(dup.reason)})">Doublon</span>`
@@ -183,7 +184,7 @@ function rowHtml(t, dup) {
     ? `<a class="open" href="${esc(url)}" target="_blank" rel="noopener" aria-label="Ouvrir ${esc(t.title)} sur SoundCloud">${OPEN_ICON}</a>`
     : '<span></span>';
   const cur = nowTrack() && nowTrack().id === t.id;
-  return `<li class="trk${dup ? ' is-dup' : ''}${cur ? ' is-current' : ''}${cur && player.playing ? ' is-playing' : ''}" data-id="${t.id}">
+  return `<li class="trk${dup ? ' is-dup' : ''}${playableUrl(t) ? ' can-play' : ''}${cur ? ' is-current' : ''}${cur && player.playing ? ' is-playing' : ''}" data-id="${t.id}">
     ${
       playableUrl(t)
         ? `<button type="button" class="thumb play" data-act="play" style="--c:${tint(t.artist || t.title)}" aria-label="Écouter ${esc(t.title)}">${esc(letterOf(t.artist || t.title))}${t.art ? img(t.art, 't200x200') : ''}</button>`
@@ -192,6 +193,11 @@ function rowHtml(t, dup) {
     <span class="trk-main"><span class="trk-title" title="${esc(t.title)}">${esc(shown)}</span><span class="trk-artist">${esc(t.artist || 'Artiste inconnu')}</span></span>
     <span class="trk-badges">${badge}</span>
     <span class="trk-dur">${t.duration ? L.formatDuration(t.duration) : ''}</span>
+    ${
+      dj
+        ? `<span class="moves"><button type="button" class="mv" data-act="move-up" aria-label="Monter ${esc(t.title)}" title="Monter">▲</button><button type="button" class="mv" data-act="move-down" aria-label="Descendre ${esc(t.title)}" title="Descendre">▼</button></span>`
+        : ''
+    }
     ${open}
     <button type="button" class="trk-x" data-act="remove-track" aria-label="Retirer ${esc(t.title)} de la playlist" title="Retirer de la playlist">×</button>
   </li>`;
@@ -226,8 +232,20 @@ function renderDetail() {
   $('#recreate').disabled = pl.tracks.length === 0;
   $('#split').disabled = pl.tracks.length < 2;
   $('#export').disabled = pl.tracks.length === 0;
+  const trans = pl.dj ? L.transitionsOf(pl.tracks) : [];
+  const weak = trans.filter((x) => x.tone === 'weak').length;
+  $('#pl-meta').textContent = metaOf(pl) + (pl.dj ? (weak ? ` · ${plural(weak, 'enchaînement à préparer', 'enchaînements à préparer')}` : ' · set sans saut difficile') : '');
+  $('#order').textContent = pl.dj ? 'Réordonner le set' : 'Ordonner pour DJer';
+  $('#order').disabled = pl.tracks.length < 3;
+  $('#tracks').classList.toggle('is-set', Boolean(pl.dj));
   $('#tracks').innerHTML = pl.tracks.length
-    ? pl.tracks.map((t) => rowHtml(t, dups.get(t.id))).join('')
+    ? pl.tracks
+        .map((t, i) => {
+          const x = trans[i];
+          const gap = x ? `<li class="gap gap-${x.tone}" role="presentation"><span>${x.tone === 'weak' ? 'À préparer · ' : ''}${esc(x.label)}</span></li>` : '';
+          return rowHtml(t, dups.get(t.id), Boolean(pl.dj)) + gap;
+        })
+        .join('')
     : '<li class="tracks-empty">Cette playlist est vide.</li>';
   renderNotice();
 }
@@ -256,9 +274,10 @@ function addPlaylist(name, tracks, art = '') {
   return pl;
 }
 
-function mutate(pl, tracks, text, undoable = true) {
-  state.notice = { text, undo: undoable ? { id: pl.id, tracks: pl.tracks } : null };
+function mutate(pl, tracks, text, undoable = true, dj = pl.dj) {
+  state.notice = { text, undo: undoable ? { id: pl.id, tracks: pl.tracks, dj: pl.dj } : null };
   pl.tracks = tracks;
+  pl.dj = dj;
   saveSoon();
   renderDetail();
 }
@@ -364,6 +383,30 @@ function mergePicked(ids) {
   state.notice = {
     text: `Fusion de ${pls.length} playlists : ${plural(m.playlist.tracks.length, 'titre', 'titres')}${m.removed ? `, ${plural(m.removed, 'doublon retiré', 'doublons retirés')}` : ''}.`,
   };
+  renderNotice();
+}
+
+function makeSet(ids) {
+  const pls = ids.map((id) => state.lib.find((p) => p.id === id)).filter(Boolean);
+  if (pls.length < 2) return;
+  const name = L.uniqueName(state.lib, `Set · ${pls.map((p) => p.name).join(' + ')}`.slice(0, 60));
+  const r = L.buildSetFrom(pls, name, { threshold: state.threshold });
+  r.playlist.name = name;
+  state.lib.push(r.playlist);
+  if (r.aside) {
+    r.aside.name = L.uniqueName(state.lib, r.aside.name);
+    state.lib.push(r.aside);
+  }
+  saveSoon();
+  closeSheet();
+  setView('detail', r.playlist.id);
+  const parts = [
+    `Set de ${plural(r.playlist.tracks.length, 'titre', 'titres')} à partir de ${pls.length} playlists`,
+    r.removed ? `${plural(r.removed, 'doublon retiré', 'doublons retirés')}` : '',
+    r.weak ? `${plural(r.weak, 'enchaînement à préparer', 'enchaînements à préparer')} (en orange)` : 'aucun saut difficile',
+    r.aside ? `${plural(r.aside.tracks.length, 'titre mis de côté', 'titres mis de côté')} dans « ${r.aside.name} »` : '',
+  ].filter(Boolean);
+  state.notice = { text: `${parts.join(' · ')}.` };
   renderNotice();
 }
 
@@ -529,6 +572,12 @@ function ideasSheet() {
         : '<p>Aucune autre version de ce titre dans tes playlists.</p>'
     }
     <p style="margin-top:8px"><a class="link" href="https://soundcloud.com/search/sounds?q=${q}%20remix" target="_blank" rel="noopener">Chercher ses remixes sur SoundCloud</a></p>
+    <h3>Trouver de nouveaux sons</h3>
+    <p>${
+      safeUrl(t.url)
+        ? `<a class="link" href="${esc(safeUrl(t.url).replace(/[?#].*$/, '').replace(/\/+$/, ''))}/recommended" target="_blank" rel="noopener">Voir les sons similaires sur SoundCloud</a>. Sur cette page, clique sur le favori « Ajouter à Le bac » : ils arrivent ici comme une playlist, que tu peux fusionner dans ton set.`
+        : 'Ce titre n\'a pas de lien SoundCloud : impossible d\'ouvrir ses sons similaires.'
+    }</p>
     <h3>${r.style ? `Même style : ${esc(r.style)}` : 'Même style'}</h3>
     ${
       r.style
@@ -596,6 +645,11 @@ $('#hb-merge').addEventListener('click', () => {
   state.picked.clear();
   mergePicked(ids);
 });
+$('#hb-set').addEventListener('click', () => {
+  const ids = [...state.picked];
+  state.picked.clear();
+  makeSet(ids);
+});
 $('#hb-compare').addEventListener('click', () => {
   const [a, b] = [...state.picked].map((id) => state.lib.find((p) => p.id === id));
   if (a && b) compareSheet(a, b);
@@ -619,6 +673,12 @@ $('#clean').addEventListener('click', () => {
 $('#recreate').addEventListener('click', () => {
   const pl = current();
   if (pl) pushSheet(pl);
+});
+$('#order').addEventListener('click', () => {
+  const pl = current();
+  if (!pl || pl.tracks.length < 3) return;
+  const set = L.buildSet(pl.tracks, { startId: pl.tracks[0].id, keepAll: true });
+  mutate(pl, set.ordered, `Mis en ordre pour le DJ, en partant du premier titre. ${set.weak ? plural(set.weak, 'enchaînement à préparer', 'enchaînements à préparer') + ' (en orange).' : 'Aucun saut difficile.'}`, true, true);
 });
 $('#split').addEventListener('click', () => {
   const pl = current();
@@ -646,10 +706,11 @@ $('#delete').addEventListener('click', () => {
 $('#notice').addEventListener('click', (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'undo' && state.notice?.undo) {
-    const { id, tracks } = state.notice.undo;
+    const { id, tracks, dj } = state.notice.undo;
     const pl = state.lib.find((p) => p.id === id);
     if (pl) {
       pl.tracks = tracks;
+      pl.dj = dj;
       saveSoon();
     }
     state.notice = null;
@@ -667,6 +728,28 @@ $('#notice').addEventListener('click', (e) => {
 });
 
 $('#tracks').addEventListener('click', (e) => {
+  const mv = e.target.closest('[data-act="move-up"], [data-act="move-down"]');
+  if (mv) {
+    const pl = current();
+    const id = Number(mv.closest('.trk').dataset.id);
+    const i = pl ? pl.tracks.findIndex((t) => t.id === id) : -1;
+    const j = i + (mv.dataset.act === 'move-up' ? -1 : 1);
+    if (i < 0 || j < 0 || j >= pl.tracks.length) return;
+    const arr = [...pl.tracks];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    pl.tracks = arr;
+    saveSoon();
+    renderDetail();
+    $(`#tracks .trk[data-id="${id}"] [data-act="${mv.dataset.act}"]`)?.focus();
+    return;
+  }
+  // toute la ligne lance la musique, sauf les boutons et liens qu'elle contient
+  const row = e.target.closest('.trk.can-play');
+  if (row && !e.target.closest('a, button:not([data-act="play"])')) {
+    const pl = current();
+    if (pl) playFromPlaylist(pl, Number(row.dataset.id));
+    return;
+  }
   const play = e.target.closest('[data-act="play"]');
   if (play) {
     const pl = current();

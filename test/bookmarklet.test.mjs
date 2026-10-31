@@ -378,3 +378,24 @@ test('page Likes de la personne connectée : /me avec son jeton', async () => {
   await extractor(r.win, APP);
   assert.match(r.notes.at(-1), /pas connecté/);
 });
+
+test('page « Sons similaires » : lit les titres proposés pour le titre', async () => {
+  const { win, calls } = fakeWin({
+    pathname: '/artiste/un-titre/recommended',
+    hydration: [{ hydratable: 'apiClient', data: { id: 'CR' } }],
+    responses: (path, q) => {
+      if (path === 'resolve') {
+        assert.equal(q.get('url'), 'https://soundcloud.com/artiste/un-titre');
+        return full(5, { title: 'Un titre' });
+      }
+      if (path === 'tracks/5/related') return { collection: [full(61), full(62), { kind: 'x' }] };
+      return null;
+    },
+  });
+  await extractor(win, APP);
+  assert.ok(calls.some((c) => c.includes('/tracks/5/related')));
+  const imp = core.decodeImport('#' + win.opened.url.split('#')[1]);
+  assert.equal(imp.name, 'Similaires à Un titre');
+  assert.deepEqual(imp.tracks.map((t) => t.id), [61, 62]);
+  assert.equal(imp.art, '');
+});
