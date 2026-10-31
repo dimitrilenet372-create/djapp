@@ -25,6 +25,16 @@ L'écran ressemble à une app de musique : un bouton **Ajouter une playlist**, e
 
 Les playlists restent dans ton navigateur : rien n'est envoyé à un serveur.
 
+## Sur le téléphone (synchro)
+
+Les playlists sont gardées dans le navigateur de chaque appareil. Pour les retrouver ailleurs, clique sur **Sur mon téléphone** (sous les onglets, ou en bas de page) :
+
+1. Crée une clé GitHub (le lien prérempli coche déjà « gist ») et colle-la dans la fenêtre. L'app crée un **Gist privé** à ton nom qui contient ta bibliothèque.
+2. Copie le lien affiché et ouvre-le sur le téléphone, une fois. Les playlists apparaissent.
+3. Ensuite, tout changement fait d'un côté arrive de l'autre : à l'ouverture de la page, au retour sur l'onglet, et quelques secondes après chaque modification.
+
+Le lien contient ta clé : ne le partage pas. Pour arrêter, **Arrêter la synchro sur cet appareil** (les playlists restent). Si les deux appareils changent la même chose en même temps, ce qui existe d'un côté et pas de l'autre est conservé, donc une playlist supprimée peut revenir. L'ajout d'une playlist par le favori reste à faire sur l'ordinateur (soundcloud.com) : le téléphone sert à retrouver, écouter et ordonner.
+
 ## Playlists et sets
 
 L'accueil a deux onglets : **Playlists** (tes playlists) et **Sets DJ** (les playlists ordonnées pour le DJ, repérées par une pastille SET). Un set créé s'ouvre dans son onglet ; une playlist passe dans **Sets DJ** dès que tu l'ordonne pour DJer.

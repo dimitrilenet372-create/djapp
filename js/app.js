@@ -1,9 +1,10 @@
 import * as core from './core.js';
 import * as L from './library.js';
 import { SAMPLE_A, SAMPLE_2 } from './sample.js';
+import * as SY from './sync.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
-const VERSION = '2026-10-31-h';
+const VERSION = '2026-10-31-i';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -42,8 +43,36 @@ const saveSoon = () => {
     } catch {
       /* stockage plein ou refusé : l'app fonctionne quand même */
     }
+    if (sync) {
+      sync.dirty = true;
+      writeSync();
+      syncSoon();
+    }
   }, 250);
 };
+
+// --------------------------------------------------------------------------- //
+// Synchronisation entre appareils (Gist GitHub privé) : { t: clé, g: Gist, at: dernière heure vue, dirty }
+// --------------------------------------------------------------------------- //
+const SYNC_STORE = 'lebac.sync';
+function readSync() {
+  try {
+    const c = JSON.parse(window.localStorage.getItem(SYNC_STORE));
+    return c && c.t && c.g ? { t: c.t, g: c.g, at: Number(c.at) || 0, dirty: Boolean(c.dirty) } : null;
+  } catch {
+    return null;
+  }
+}
+let sync = readSync();
+let syncState = { busy: false, error: '', last: 0 };
+function writeSync() {
+  try {
+    if (sync) window.localStorage.setItem(SYNC_STORE, JSON.stringify(sync));
+    else window.localStorage.removeItem(SYNC_STORE);
+  } catch {
+    /* sans stockage, la synchro reste valable jusqu'à la fermeture de la page */
+  }
+}
 
 const current = () => state.lib.find((p) => p.id === state.id) || null;
 
@@ -461,6 +490,153 @@ async function readFiles(files) {
   return texts;
 }
 
+let syncTimer;
+const syncSoon = () => {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => syncNow(), 1500);
+};
+
+/** Remplace la bibliothèque affichée par celle reçue, sans bousculer l'écran en cours. */
+function applyLib(lib) {
+  state.lib = lib;
+  try {
+    window.localStorage.setItem(STORE, L.serialize(lib));
+  } catch {
+    /* voir saveSoon */
+  }
+  state.picked = new Set([...state.picked].filter((id) => lib.some((p) => p.id === id)));
+  if (state.view === 'detail' && !current()) setView('home');
+  else if (state.view === 'detail') renderDetail();
+  else renderHome();
+  if (!$('#sheet').hidden && $('#sync-box')) syncSheet();
+}
+
+/** Récupère ce qui est plus récent sur le Gist, puis envoie ce qui a changé ici. Renvoie true si tout s'est bien passé. */
+async function syncNow() {
+  if (!sync || syncState.busy) return false;
+  syncState = { ...syncState, busy: true, error: '' };
+  const store = SY.gistStore(sync.t);
+  try {
+    const remoteText = await store.read(sync.g);
+    const remoteAt = remoteText ? SY.stampOf(remoteText) : 0;
+    let pull = null;
+    if (remoteText && remoteAt > sync.at) {
+      pull = L.deserialize(remoteText);
+      if (sync.dirty) applyLib(SY.mergeLibs(state.lib, pull));
+      else applyLib(pull);
+      sync.at = remoteAt;
+    }
+    if (sync.dirty || (!remoteText && state.lib.length)) {
+      const stamp = Math.max(Date.now(), sync.at + 1);
+      sync.dirty = false; // un changement pendant l'envoi remet l'indicateur
+      try {
+        await store.write(sync.g, SY.withStamp(L.serialize(state.lib), stamp));
+      } catch (e) {
+        sync.dirty = true;
+        throw e;
+      }
+      sync.at = stamp;
+    }
+    writeSync();
+    syncState = { busy: false, error: '', last: Date.now() };
+  } catch (e) {
+    syncState = { busy: false, error: e.message || 'Synchronisation impossible.', last: syncState.last };
+    renderSyncBtn();
+    if (!$('#sheet').hidden && $('#sync-box')) syncSheet();
+    return false;
+  }
+  renderSyncBtn();
+  if (!$('#sheet').hidden && $('#sync-box')) syncSheet();
+  return true;
+}
+
+function renderSyncBtn() {
+  for (const b of document.querySelectorAll('[data-act="sync-open"]')) {
+    b.classList.toggle('is-on', Boolean(sync));
+    b.classList.toggle('is-err', Boolean(sync && syncState.error));
+    b.textContent = !sync ? 'Sur mon téléphone' : syncState.error ? 'Synchro à vérifier' : 'Synchronisé';
+  }
+}
+
+function syncSheet(message = '') {
+  const base = window.location.origin + window.location.pathname;
+  if (!sync) {
+    openSheet(`<div id="sync-box"><h2 id="sheet-title">Retrouver mes playlists sur mon téléphone</h2>
+      <p>Tes playlists sont gardées dans ce navigateur. Pour les voir aussi sur un autre appareil, elles sont copiées dans un <b>Gist privé</b> de ton compte GitHub, que seule ta clé peut ouvrir.</p>
+      <ol class="steps">
+        <li><b>Une seule fois :</b> <a href="https://github.com/settings/tokens/new?scopes=gist&description=Le%20bac" target="_blank" rel="noopener"><b>crée une clé GitHub</b></a> (« gist » est déjà coché). Choisis la durée « No expiration », clique « Generate token » en bas, puis copie la clé affichée (elle commence par <code>ghp_</code>).</li>
+        <li>Colle-la ici.
+          <form id="sync-form" class="paste" autocomplete="off">
+            <label class="sr-only" for="sync-token">Clé GitHub</label>
+            <input id="sync-token" type="password" placeholder="ghp_…" autocapitalize="off" spellcheck="false">
+            <div class="paste-foot"><button type="submit" class="btn btn-small btn-solid">Activer la synchro</button></div>
+          </form></li>
+      </ol>
+      ${message ? `<p class="warn">${esc(message)}</p>` : ''}</div>`);
+    return;
+  }
+  const link = SY.syncLink(base, sync);
+  const when = syncState.last ? new Date(syncState.last).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+  openSheet(`<div id="sync-box"><h2 id="sheet-title">Synchro avec mon téléphone</h2>
+    ${
+      syncState.error
+        ? `<p class="warn">${esc(syncState.error)}</p>`
+        : syncState.busy
+          ? '<p>Synchronisation en cours…</p>'
+          : `<p class="ok">✓ Synchronisé${when ? ` à ${when}` : ''}. Les changements se copient tout seuls entre tes appareils.</p>`
+    }
+    ${message ? `<p class="ok">${esc(message)}</p>` : ''}
+    <ol class="steps">
+      <li>Envoie-toi ce lien et ouvre-le <b>sur ton téléphone</b> (une seule fois) :
+        <input id="sync-link" class="copied-line" readonly value="${esc(link)}" aria-label="Lien pour le téléphone">
+        <div class="paste-foot">
+          <button type="button" class="btn btn-small btn-solid" data-act="sync-copy">Copier le lien</button>
+          ${navigator.share ? '<button type="button" class="btn btn-small btn-line" data-act="sync-share">Envoyer…</button>' : ''}
+        </div></li>
+    </ol>
+    <p class="hint">Ce lien contient ta clé : ne le partage pas. Sur le téléphone, ouvre-le une fois, puis garde simplement l'adresse du site.</p>
+    <div class="sheet-foot">
+      <button type="button" class="link" data-act="sync-now">Synchroniser maintenant</button>
+      <button type="button" class="link danger" data-act="sync-off">Arrêter la synchro sur cet appareil</button>
+    </div></div>`);
+}
+
+/** Active la synchro avec une clé : crée le Gist avec la bibliothèque actuelle. */
+async function enableSync(token) {
+  const t = String(token || '').trim();
+  if (!/^[\w-]{20,}$/.test(t)) return syncSheet("Cette clé n'a pas la bonne forme. Copie-la en entier, depuis la page GitHub.");
+  try {
+    const stamp = Date.now();
+    const g = await SY.gistStore(t).create(SY.withStamp(L.serialize(state.lib), stamp));
+    sync = { t, g, at: stamp, dirty: false };
+    writeSync();
+    syncState = { busy: false, error: '', last: Date.now() };
+    renderSyncBtn();
+    syncSheet();
+  } catch (e) {
+    syncSheet(e.message);
+  }
+}
+
+/** Lien reçu sur un autre appareil : on se branche sur le même Gist, puis on fusionne. */
+async function handleSyncLink() {
+  const link = SY.decodeSyncLink(window.location.hash);
+  if (!link) return false;
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  sync = { t: link.t, g: link.g, at: 0, dirty: state.lib.length > 0 };
+  writeSync();
+  renderSyncBtn();
+  toast('Synchronisation en cours…');
+  const ok = await syncNow();
+  if (ok) {
+    setView('home');
+    toast(`Synchronisé : ${plural(state.lib.length, 'playlist', 'playlists')} sur cet appareil.`);
+  } else {
+    syncSheet();
+  }
+  return true;
+}
+
 function handleImport() {
   const imp = core.decodeImport(window.location.hash);
   if (!imp) return;
@@ -475,7 +651,10 @@ function handleImport() {
   setView('home');
   toast(`${pl.name} ajoutée : ${plural(tracks.length, 'titre', 'titres')}.`);
 }
-window.addEventListener('hashchange', handleImport);
+window.addEventListener('hashchange', () => {
+  if (SY.decodeSyncLink(window.location.hash)) handleSyncLink();
+  else handleImport();
+});
 
 // --------------------------------------------------------------------------- //
 // Lecteur SoundCloud (widget officiel) : ne joue que les titres que leurs artistes autorisent hors de SoundCloud
@@ -642,12 +821,15 @@ $('#p-close').addEventListener('click', () => {
 // --------------------------------------------------------------------------- //
 // Événements
 // --------------------------------------------------------------------------- //
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-act="sync-open"]')) syncSheet();
+});
 $('#tabs').addEventListener('click', (e) => {
   const b = e.target.closest('[data-tab]');
   if (b) setTab(b.dataset.tab);
 });
 $('#tabs').addEventListener('keydown', (e) => {
-  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  if ((e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') || !e.target.closest('[role="tab"]')) return;
   const next = state.tab === 'playlists' ? 'sets' : 'playlists';
   setTab(next);
   $(`#tab-${next}`).focus();
@@ -824,7 +1006,24 @@ $('#sheet-body').addEventListener('click', async (e) => {
   if (act === 'copy-bm') toast((await copyText(bookmarkletCode(appUrl()))) ? "Code copié : colle-le comme adresse d'un nouveau favori." : 'Copie impossible.');
   else if (act === 'copy-bm2') toast((await copyText(pusherCode())) ? "Code copié : colle-le comme adresse d'un nouveau favori." : 'Copie impossible.');
   else if (act === 'sample') loadSample();
-  else if (act === 'copy-push') {
+  else if (act === 'sync-copy') toast((await copyText($('#sync-link').value)) ? 'Lien copié. Ouvre-le sur ton téléphone.' : 'Copie impossible : sélectionne le lien et copie-le.');
+  else if (act === 'sync-share') {
+    try {
+      await navigator.share({ title: 'Le bac', url: $('#sync-link').value });
+    } catch {
+      /* partage annulé */
+    }
+  } else if (act === 'sync-now') {
+    syncSheet();
+    await syncNow();
+  } else if (act === 'sync-off') {
+    sync = null;
+    writeSync();
+    syncState = { busy: false, error: '', last: 0 };
+    renderSyncBtn();
+    closeSheet();
+    toast('Synchro arrêtée sur cet appareil. Tes playlists restent ici et sur GitHub.');
+  } else if (act === 'copy-push') {
     const pl = state.lib.find((p) => p.id === btn.dataset.id);
     if (pl) toast((await copyText(core.soundcloudPayload([pl]).text)) ? 'Copié.' : 'Copie impossible.');
   } else if (act === 'merge-two') mergePicked([btn.dataset.a, btn.dataset.b]);
@@ -838,6 +1037,11 @@ $('#sheet-body').addEventListener('click', async (e) => {
   }
 });
 $('#sheet-body').addEventListener('submit', async (e) => {
+  if (e.target.id === 'sync-form') {
+    e.preventDefault();
+    await enableSync($('#sync-token').value);
+    return;
+  }
   if (e.target.id !== 'paste-form') return;
   e.preventDefault();
   const text = $('#paste-text').value;
@@ -867,4 +1071,13 @@ $('#version').textContent = VERSION;
 const pageVersion = document.querySelector('meta[name="app-version"]');
 $('#stale').hidden = !pageVersion || pageVersion.content === VERSION;
 setView('home');
-handleImport();
+renderSyncBtn();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') syncNow();
+});
+handleSyncLink().then((was) => {
+  if (!was) {
+    handleImport();
+    syncNow();
+  }
+});

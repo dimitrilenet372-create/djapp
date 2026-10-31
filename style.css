@@ -83,15 +83,28 @@ main { max-width: 1240px; margin: 0 auto; padding: clamp(24px, 4vw, 44px) var(--
 /* ---------- accueil : pochettes ---------- */
 .start { max-width: 46ch; display: grid; gap: 10px; justify-items: start; }
 .start p { margin: 0; font-size: 1.125rem; }
-.home-tabs { display: flex; gap: 6px; margin: 0 0 22px; border-bottom: 2px solid var(--line); }
-.home-tabs button {
+.home-tabs { display: flex; align-items: flex-end; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; margin: 0 0 22px; border-bottom: 2px solid var(--line); }
+.home-tabs[hidden] { display: none; }
+.tablist { display: flex; gap: 6px; }
+.tablist button {
   display: inline-flex; align-items: baseline; gap: 8px; padding: 8px 14px 10px; margin-bottom: -2px; cursor: pointer;
   border: 0; border-bottom: 3px solid transparent; background: none; color: var(--muted);
   font: inherit; font-size: 1.0625rem; font-weight: 800;
 }
-.home-tabs button:hover { color: var(--ink); }
-.home-tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--klein); }
-.home-tabs .n { font-size: 0.8125rem; font-weight: 700; color: var(--muted); }
+.tablist button:hover { color: var(--ink); }
+.tablist button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--klein); }
+.tablist .n { font-size: 0.8125rem; font-weight: 700; color: var(--muted); }
+.sync-btn {
+  margin-bottom: 8px; padding: 3px 12px; border-radius: 999px; cursor: pointer;
+  border: 1.5px solid var(--line); background: none; color: var(--muted); font: inherit; font-size: 0.8125rem; font-weight: 700;
+}
+.sync-btn:hover { border-color: var(--ink); color: var(--ink); }
+.sync-btn.is-on { color: var(--ink); }
+.sync-btn.is-on::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: #2fa66a; }
+.sync-btn.is-err::before { background: var(--hot); }
+.sync-foot { margin-left: 8px; }
+.copied-line { width: 100%; margin: 8px 0; padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font: inherit; font-size: 0.75rem; }
+.hint { margin: 10px 0 0; color: var(--muted); font-size: 0.875rem; }
 #tab-empty { margin: 0 0 20px; }
 .card.is-set .card-name::before {
   content: 'SET'; display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 4px; vertical-align: 2px;
