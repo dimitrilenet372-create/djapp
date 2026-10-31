@@ -3,7 +3,7 @@ import * as L from './library.js';
 import { SAMPLE_A, SAMPLE_2 } from './sample.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
-const VERSION = '2026-10-31-e';
+const VERSION = '2026-10-31-f';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -47,7 +47,7 @@ const saveSoon = () => {
 const current = () => state.lib.find((p) => p.id === state.id) || null;
 
 // lecteur : file des titres de la playlist en cours d'écoute
-const player = { queue: [], i: -1, widget: null, playing: false };
+const player = { queue: [], i: -1, widget: null, playing: false, note: '', timer: null };
 const nowTrack = () => player.queue[player.i] || null;
 const playableUrl = (t) => safeUrl(t.url) || (t.scid ? `https://api.soundcloud.com/tracks/${t.scid}` : '');
 
@@ -140,7 +140,7 @@ function renderHome() {
       return `<article class="card${on ? ' is-picked' : ''}" data-id="${pl.id}" style="--i:${Math.min(i, 10)}">
         <button type="button" class="card-open" data-act="open" aria-label="Ouvrir ${esc(pl.name)}">${coverHtml(pl)}
           <p class="card-name">${esc(pl.name)}</p><p class="card-meta">${esc(metaOf(pl))}</p></button>
-        <button type="button" class="pick" data-act="pick" aria-pressed="${on}" aria-label="Choisir ${esc(pl.name)} pour comparer ou fusionner">${on ? '✓' : ''}</button>
+        <button type="button" class="pick" data-act="pick" aria-pressed="${on}" aria-label="Choisir ${esc(pl.name)} pour comparer ou fusionner">${on ? '✓ Choisie' : 'Choisir'}</button>
       </article>`;
     })
     .join('');
@@ -426,7 +426,7 @@ function syncPlayer() {
   document.body.classList.toggle('has-player', Boolean(t));
   if (!t) return;
   $('#p-title').textContent = t.title;
-  $('#p-artist').textContent = t.artist || 'Artiste inconnu';
+  $('#p-artist').textContent = player.note || t.artist || 'Artiste inconnu';
   $('#p-toggle').textContent = player.playing ? '❚❚' : '▶';
   $('#p-prev').disabled = player.i <= 0;
   $('#p-next').disabled = player.i >= player.queue.length - 1;
@@ -443,18 +443,22 @@ function syncPlayer() {
   }
 }
 
+const HINT_MS = 7000;
 async function playIndex(i) {
   const t = player.queue[i];
   if (!t) return;
   player.i = i;
   player.playing = false;
+  player.note = 'Chargement du lecteur…';
+  clearTimeout(player.timer);
   syncPlayer();
   const url = playableUrl(t);
   try {
     await loadWidgetApi();
   } catch {
-    toast('Le lecteur SoundCloud ne se charge pas. Le titre s\'ouvre sur SoundCloud.', 5000);
-    window.open(url, '_blank', 'noopener');
+    // pas d'ouverture automatique d'un onglet (le navigateur la bloque après une attente) : un lien visible à la place
+    player.note = 'Le lecteur SoundCloud ne se charge pas (bloqueur de publicités ?). Utilise « Ouvrir sur SoundCloud ».';
+    syncPlayer();
     return;
   }
   const opts = { auto_play: true, show_comments: false, hide_related: true, visual: false };
@@ -464,18 +468,35 @@ async function playIndex(i) {
     frame.src = `https://w.soundcloud.com/player/?${q}`;
     const w = window.SC.Widget(frame);
     const E = window.SC.Widget.Events;
-    w.bind(E.PLAY, () => { player.playing = true; syncPlayer(); });
+    w.bind(E.PLAY, () => {
+      clearTimeout(player.timer);
+      player.playing = true;
+      player.note = '';
+      syncPlayer();
+    });
     w.bind(E.PAUSE, () => { player.playing = false; syncPlayer(); });
     w.bind(E.FINISH, () => {
       player.playing = false;
       if (player.i < player.queue.length - 1) playIndex(player.i + 1);
       else syncPlayer();
     });
-    w.bind(E.ERROR, () => toast('Ce titre ne peut pas être lu ici : ouvre-le sur SoundCloud.', 5000));
+    w.bind(E.ERROR, () => {
+      player.note = 'Ce titre ne peut pas être lu ici : ouvre-le sur SoundCloud.';
+      syncPlayer();
+    });
     player.widget = w;
   } else {
     player.widget.load(url, opts);
   }
+  player.note = '';
+  syncPlayer();
+  // sans son au bout de quelques secondes : on dit pourquoi, au lieu de rester muet
+  player.timer = setTimeout(() => {
+    if (!player.playing && player.i === i) {
+      player.note = 'Pas de son ? Appuie sur ▶ dans le lecteur, ou ouvre le titre sur SoundCloud.';
+      syncPlayer();
+    }
+  }, HINT_MS);
 }
 
 /** Écoute un titre de la playlist ouverte ; la file reprend les titres de la liste, doublons exceptés. */
@@ -524,6 +545,8 @@ $('#p-prev').addEventListener('click', () => player.i > 0 && playIndex(player.i 
 $('#p-next').addEventListener('click', () => player.i < player.queue.length - 1 && playIndex(player.i + 1));
 $('#p-ideas').addEventListener('click', ideasSheet);
 $('#p-close').addEventListener('click', () => {
+  clearTimeout(player.timer);
+  player.note = '';
   if (player.widget) player.widget.pause();
   player.queue = [];
   player.i = -1;

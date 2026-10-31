@@ -83,7 +83,7 @@ main { max-width: 1240px; margin: 0 auto; padding: clamp(24px, 4vw, 44px) var(--
 /* ---------- accueil : pochettes ---------- */
 .start { max-width: 46ch; display: grid; gap: 10px; justify-items: start; }
 .start p { margin: 0; font-size: 1.125rem; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 28px 22px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 28px 22px; }
 .card { position: relative; min-width: 0; }
 .card-open {
   display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer;
@@ -92,11 +92,11 @@ main { max-width: 1240px; margin: 0 auto; padding: clamp(24px, 4vw, 44px) var(--
 .card-name { margin: 10px 0 0; font-weight: 800; font-size: 1.0625rem; line-height: 1.2; overflow-wrap: anywhere; }
 .card-meta { margin: 2px 0 0; color: var(--muted); font-size: 0.875rem; }
 .pick {
-  position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%;
-  border: 2px solid #fff; background: rgba(10, 18, 64, 0.35); color: #fff; cursor: pointer;
-  display: grid; place-items: center; font-size: 1rem; font-weight: 800; line-height: 1; padding: 0;
+  margin-top: 6px; padding: 2px 12px; border-radius: 999px; cursor: pointer;
+  border: 1.5px solid var(--line); background: none; color: var(--muted); font-size: 0.8125rem; font-weight: 700;
 }
-.pick[aria-pressed="true"] { background: var(--klein); }
+.pick:hover { border-color: var(--ink); color: var(--ink); }
+.pick[aria-pressed="true"] { background: var(--klein); border-color: var(--klein); color: #fff; }
 .card.is-picked .cover { outline: 4px solid var(--klein); outline-offset: 2px; }
 
 .cover {

@@ -180,7 +180,10 @@ test('une playlist sans lien ni identifiant ne part pas', async () => {
 });
 
 test('comparer deux playlists', () => {
+  assert.equal($('.pick', cards()[0]).textContent, 'Choisir');
+  assert.equal($('.card-open .pick', cards()[0]), null, 'le bouton Choisir n\'est pas sur la pochette');
   click($('.pick', cards()[0]));
+  assert.equal($('.pick', cards()[0]).textContent, '✓ Choisie');
   assert.equal($('#homebar').hidden, false);
   assert.match($('#homebar-text').textContent, /1 playlist choisie/);
   assert.equal($('#hb-compare').hidden, true);
@@ -320,6 +323,12 @@ test('lecteur : écoute, pause, suivant, enchaînement automatique, fermeture', 
   click($('#p-prev'));
   await wait();
   assert.equal($('#p-title').textContent, 'Pjanoo');
+
+  // un titre que SoundCloud refuse de jouer : le message le dit dans la barre
+  widgets[0].handlers.error();
+  assert.match($('#p-artist').textContent, /ne peut pas être lu ici/);
+  widgets[0].handlers.play();
+  assert.equal($('#p-artist').textContent, 'Eric Prydz', 'le message disparaît quand la lecture démarre');
 });
 
 test('idées d\'enchaînement : autres versions puis même style, « jouer ensuite »', async () => {
