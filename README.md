@@ -35,9 +35,16 @@ Les playlists sont gardées dans le navigateur de chaque appareil. Pour les retr
 
 Le lien contient ta clé : ne le partage pas. Pour arrêter, **Arrêter la synchro sur cet appareil** (les playlists restent). Si les deux appareils changent la même chose en même temps, ce qui existe d'un côté et pas de l'autre est conservé, donc une playlist supprimée peut revenir. L'ajout d'une playlist par le favori reste à faire sur l'ordinateur (soundcloud.com) : le téléphone sert à retrouver, écouter et ordonner.
 
-## Trouver les tonalités automatiquement
+## Tonalité et BPM sur chaque ligne
 
-Le bouton **Trouver les tonalités** d'une playlist cherche chaque titre sans tonalité dans [GetSongBPM](https://getsongbpm.com), une base gratuite de tonalités et de tempos, puis remplit les cases (et le tempo s'il manque). Il faut une clé gratuite, à demander sur getsongbpm.com/api et à coller une fois dans l'app. Les remixes et edits sont ignorés (leur tonalité peut différer de l'original), les titres que tu as déjà renseignés ne sont pas touchés, et le résultat s'annule. Les tonalités trouvées ont une bordure en pointillés : à vérifier à l'oreille. Les morceaux récents ou peu connus manquent souvent dans la base : saisis-les à la main avec **+ clé**.
+SoundCloud ne donne la tonalité et le tempo que si l'artiste les a écrits. Pour les autres, l'app les cherche toute seule dans [GetSongBPM](https://getsongbpm.com), une base gratuite : dès qu'une playlist est ajoutée ou ouverte, les lignes se remplissent (« … » pendant la recherche, puis par exemple `8A` et `126 BPM`).
+
+Il faut une seule chose, une fois : une **clé gratuite**, à demander sur getsongbpm.com/api (elle arrive par e-mail) et à coller dans l'app. Avec la synchro « Sur mon téléphone », la clé suit sur le téléphone.
+
+- Les remixes et edits sont ignorés (leur tonalité peut différer de l'original), et les valeurs que tu as déjà saisies ne sont jamais écrasées.
+- Les tonalités trouvées ont une bordure en pointillés : à vérifier à l'oreille.
+- Les morceaux récents ou peu connus manquent souvent dans la base : clique sur **+ clé** pour les saisir.
+- Le bouton **Trouver les tonalités** relance la recherche à la main et permet d'annuler le résultat.
 
 ## Titres à récupérer
 

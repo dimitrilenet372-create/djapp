@@ -6,7 +6,7 @@ import * as KY from './keys.js';
 import * as SE from './serato.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
-const VERSION = '2026-10-31-l';
+const VERSION = '2026-10-31-m';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -237,7 +237,9 @@ function tuneHtml(t) {
   const hue = ((n - 1) * 30 + (t.key && t.key.endsWith('B') ? 0 : 0)) % 360;
   const key = t.key
     ? `<span class="tune-key" style="--k:${hue}" data-b="${t.key.endsWith('B') ? 1 : 0}"${t.keyAuto ? ' data-auto="1" title="Trouvée dans la base GetSongBPM : à vérifier à l\'oreille"' : ''}>${esc(t.key)}</span>`
-    : '<span class="tune-add">+ clé</span>';
+    : keyRun.pending.has(t.id)
+      ? '<span class="tune-add" title="Recherche en cours">…</span>'
+      : '<span class="tune-add">+ clé</span>';
   const bpm = t.bpm ? `<span class="tune-bpm">${Math.round(t.bpm)}</span>` : '';
   return `<button type="button" class="tune" data-act="tune" aria-label="Tonalité et tempo de ${esc(t.title)}${t.key ? ` : ${esc(t.key)}` : ''}" title="Tonalité et tempo">${key}${bpm}</button>`;
 }
@@ -306,6 +308,16 @@ function renderNotice() {
       : '<button type="button" class="link" data-act="notice-close">Fermer</button>');
 }
 
+/** Ligne sous le titre : nombre de titres, durée, état des enchaînements d'un set et de l'analyse des tonalités. */
+function renderMeta(pl, weakCount = null) {
+  const weak = weakCount ?? (pl.dj ? L.transitionsOf(pl.tracks).filter((x) => x.tone === 'weak').length : 0);
+  const dj = pl.dj ? (weak ? ` · ${plural(weak, 'enchaînement à préparer', 'enchaînements à préparer')}` : ' · set sans saut difficile') : '';
+  const run = keyRun.running && keyRun.pl === pl.id ? ` · Recherche des tonalités ${keyRun.done}/${keyRun.total}…` : '';
+  $('#pl-meta').textContent = metaOf(pl) + dj + run;
+  const hint = $('#keys-hint');
+  if (hint) hint.hidden = Boolean(readJson(GSB_KEY, '')) || !needsKey(pl).length || pl.tracks.length === 0;
+}
+
 function renderDetail() {
   const pl = current();
   if (!pl) return setView('home');
@@ -330,7 +342,7 @@ function renderDetail() {
   $('#getlist').textContent = `Titres à récupérer (${nGet})`;
   const trans = pl.dj ? L.transitionsOf(pl.tracks) : [];
   const weak = trans.filter((x) => x.tone === 'weak').length;
-  $('#pl-meta').textContent = metaOf(pl) + (pl.dj ? (weak ? ` · ${plural(weak, 'enchaînement à préparer', 'enchaînements à préparer')}` : ' · set sans saut difficile') : '');
+  renderMeta(pl, weak);
   $('#order').textContent = pl.dj ? 'Réordonner le set' : 'Ordonner pour DJer';
   $('#order').disabled = pl.tracks.length < 3;
   $('#tracks').classList.toggle('is-set', Boolean(pl.dj));
@@ -366,6 +378,7 @@ function setView(view, id = null) {
     state.picked.clear();
     renderHomebar();
     renderDetail();
+    autoKeys(current());
   }
   window.scrollTo?.(0, 0);
 }
@@ -588,7 +601,7 @@ const writeStore = (k, v) => {
     /* sans stockage, la clé est redemandée à la prochaine visite */
   }
 };
-const keyRun = { pl: null, running: false, cancel: false, done: 0, total: 0, last: '' };
+const keyRun = { pl: null, running: false, cancel: false, done: 0, total: 0, last: '', pending: new Set() };
 const needsKey = (pl) => pl.tracks.filter((t) => !t.key);
 
 function keysSheet(pl, message = '') {
@@ -624,22 +637,48 @@ function keysSheet(pl, message = '') {
     <div class="sheet-foot"><button type="button" class="link" data-act="keys-change">Changer de clé</button></div></div>`);
 }
 
-async function runKeys(pl) {
+const keyTried = new Set(); // playlists déjà analysées pendant cette visite
+
+/** Applique les résultats trouvés aux titres de la playlist (sans toucher à une tonalité déjà là). */
+function applyKeys(pl, found) {
+  if (!found.size) return;
+  pl.tracks = pl.tracks.map((x) => {
+    const r = found.get(x.id);
+    return !r || x.key ? x : { ...x, key: r.key || x.key, keyAuto: Boolean(r.key), bpm: x.bpm || r.bpm };
+  });
+  saveSoon();
+  if (state.view === 'detail' && state.id === pl.id) renderDetail();
+}
+
+/**
+ * Cherche la tonalité et le tempo des titres qui n'en ont pas. `quiet` : en arrière-plan, sans fenêtre ;
+ * sinon (bouton « Trouver les tonalités ») une fenêtre suit la progression et le résultat est annulable.
+ */
+async function runKeys(pl, { quiet = false } = {}) {
   const apiKey = readJson(GSB_KEY, '');
   if (!apiKey || keyRun.running) return;
   const cache = readJson(GSB_CACHE, {});
   const todo = needsKey(pl);
-  Object.assign(keyRun, { pl: pl.id, running: true, cancel: false, done: 0, total: todo.length, last: '' });
+  if (!todo.length) return;
+  Object.assign(keyRun, { pl: pl.id, running: true, cancel: false, done: 0, total: todo.length, last: '', pending: new Set(todo.map((t) => t.id)) });
+  const before = pl.tracks;
   const found = new Map();
   const stats = { found: 0, none: 0, skipped: 0 };
   let fatal = '';
   const bySig = new Map();
-  keysSheet(pl);
+  const showProgress = () => {
+    if (state.view === 'detail' && state.id === pl.id) renderMeta(pl);
+    const el = $('#keys-progress');
+    if (el) el.innerHTML = `Recherche : ${keyRun.done} sur ${keyRun.total}…<br><small>${esc(keyRun.last)}</small>`;
+  };
+  if (!quiet) keysSheet(pl);
+  if (state.view === 'detail' && state.id === pl.id) renderDetail(); // les lignes en attente affichent « … »
+  showProgress();
   for (const t of todo) {
     if (keyRun.cancel) break;
     keyRun.last = core.labelOf(t);
     const sig = t.sig;
-    let r = bySig.get(sig) || cache[sig];
+    let r = bySig.get(sig) ?? cache[sig];
     if (r === undefined || r === null) {
       try {
         r = await KY.lookupTrack((u) => fetch(u), apiKey, t);
@@ -659,23 +698,42 @@ async function runKeys(pl) {
     stats[r.status] += 1;
     if (r.status === 'found') found.set(t.id, r);
     keyRun.done += 1;
-    const el = $('#keys-progress');
-    if (el) el.innerHTML = `Recherche : ${keyRun.done} sur ${keyRun.total}…<br><small>${esc(keyRun.last)}</small>`;
+    keyRun.pending.delete(t.id);
+    if (quiet && found.size && keyRun.done % 4 === 0) applyKeys(pl, found); // les lignes se remplissent au fur et à mesure
+    showProgress();
   }
   keyRun.running = false;
+  keyRun.pending = new Set();
   writeStore(GSB_CACHE, cache);
-  if (state.id !== pl.id || !state.lib.includes(pl)) return;
-  const updated = pl.tracks.map((x) => {
-    const r = found.get(x.id);
-    if (!r || x.key) return x;
-    return { ...x, key: r.key || x.key, keyAuto: Boolean(r.key), bpm: x.bpm || r.bpm };
-  });
+  if (!state.lib.includes(pl)) return;
+  const text = `${plural(stats.found, 'tonalité trouvée', 'tonalités trouvées')} sur ${keyRun.done}${stats.none ? `, ${plural(stats.none, 'titre introuvable', 'titres introuvables')}` : ''}${stats.skipped ? `, ${plural(stats.skipped, 'remix ignoré', 'remix ignorés')}` : ''}${fatal ? `. Arrêtée : ${fatal}` : keyRun.cancel ? '. Arrêtée.' : '.'} Les cases en pointillés viennent de GetSongBPM : à vérifier à l'oreille.`;
+  if (quiet) {
+    applyKeys(pl, found);
+    if (state.view === 'detail' && state.id === pl.id) {
+      state.notice = { text: found.size || fatal ? text : `Aucune tonalité trouvée (${plural(stats.none, 'titre introuvable', 'titres introuvables')}). Les morceaux récents ou peu connus manquent souvent dans la base : saisis-les avec « + clé ».`, undo: null };
+      renderDetail();
+    }
+    if (fatal) toast(fatal, 6000);
+    return;
+  }
+  if (state.id !== pl.id) return;
   if (found.size) {
     closeSheet();
-    mutate(pl, updated, `${plural(stats.found, 'tonalité trouvée', 'tonalités trouvées')} sur ${keyRun.done}${stats.none ? `, ${plural(stats.none, 'titre introuvable', 'titres introuvables')}` : ''}${stats.skipped ? `, ${plural(stats.skipped, 'remix ignoré', 'remix ignorés')}` : ''}${fatal ? `. Arrêtée : ${fatal}` : keyRun.cancel ? '. Arrêtée.' : '.'} Les cases en pointillés viennent de GetSongBPM : à vérifier à l'oreille.`);
+    const updated = before.map((x) => {
+      const r = found.get(x.id);
+      return !r || x.key ? x : { ...x, key: r.key || x.key, keyAuto: Boolean(r.key), bpm: x.bpm || r.bpm };
+    });
+    mutate(pl, updated, text);
   } else {
     keysSheet(pl, fatal || (keyRun.cancel ? 'Recherche arrêtée.' : `Aucune tonalité trouvée (${plural(stats.none, 'titre introuvable', 'titres introuvables')}${stats.skipped ? `, ${plural(stats.skipped, 'remix ignoré', 'remix ignorés')}` : ''}). Les morceaux très récents ou peu connus manquent souvent dans la base : saisis-les à la main avec « + clé ».`));
   }
+}
+
+/** Lance la recherche en arrière-plan, une fois par playlist et par visite, si une clé est enregistrée. */
+function autoKeys(pl) {
+  if (!pl || keyTried.has(pl.id) || keyRun.running || !readJson(GSB_KEY, '') || !needsKey(pl).length) return;
+  keyTried.add(pl.id);
+  runKeys(pl, { quiet: true });
 }
 
 function compareSheet(a, b) {
@@ -782,6 +840,11 @@ async function syncNow() {
   try {
     const remoteText = await store.read(sync.g);
     const remoteAt = remoteText ? SY.stampOf(remoteText) : 0;
+    const remoteGsb = remoteText ? SY.gsbOf(remoteText) : '';
+    if (remoteGsb && !readJson(GSB_KEY, '')) {
+      writeStore(GSB_KEY, remoteGsb);
+      if (state.view === 'detail') autoKeys(current());
+    }
     let pull = null;
     if (remoteText && remoteAt > sync.at) {
       pull = L.deserialize(remoteText);
@@ -793,7 +856,7 @@ async function syncNow() {
       const stamp = Math.max(Date.now(), sync.at + 1);
       sync.dirty = false; // un changement pendant l'envoi remet l'indicateur
       try {
-        await store.write(sync.g, SY.withStamp(L.serialize(state.lib), stamp));
+        await store.write(sync.g, SY.withStamp(L.serialize(state.lib), stamp, { gsb: readJson(GSB_KEY, '') || undefined }));
       } catch (e) {
         sync.dirty = true;
         throw e;
@@ -870,7 +933,7 @@ async function enableSync(token) {
   if (!/^[\w-]{20,}$/.test(t)) return syncSheet("Cette clé n'a pas la bonne forme. Copie-la en entier, depuis la page GitHub.");
   try {
     const stamp = Date.now();
-    const g = await SY.gistStore(t).create(SY.withStamp(L.serialize(state.lib), stamp));
+    const g = await SY.gistStore(t).create(SY.withStamp(L.serialize(state.lib), stamp, { gsb: readJson(GSB_KEY, '') || undefined }));
     sync = { t, g, at: stamp, dirty: false };
     writeSync();
     syncState = { busy: false, error: '', last: Date.now() };
@@ -913,6 +976,7 @@ function handleImport() {
   closeSheet();
   setView('home');
   toast(`${pl.name} ajoutée : ${plural(tracks.length, 'titre', 'titres')}.`);
+  autoKeys(pl);
 }
 window.addEventListener('hashchange', () => {
   if (SY.decodeSyncLink(window.location.hash)) handleSyncLink();
@@ -1165,6 +1229,10 @@ $('#recreate').addEventListener('click', () => {
   const pl = current();
   if (pl) pushSheet(pl);
 });
+$('#keys-setup').addEventListener('click', () => {
+  const pl = current();
+  if (pl) keysSheet(pl);
+});
 $('#findkeys').addEventListener('click', () => {
   const pl = current();
   if (pl) keysSheet(pl);
@@ -1359,7 +1427,18 @@ $('#sheet-body').addEventListener('submit', async (e) => {
     const pl = current();
     if (!/^[\w-]{8,}$/.test(k)) return pl && keysSheet(pl, "Cette clé n'a pas la bonne forme. Copie-la en entier depuis l'e-mail de GetSongBPM.");
     writeStore(GSB_KEY, k);
-    if (pl) keysSheet(pl);
+    if (sync) {
+      sync.dirty = true;
+      writeSync();
+      syncSoon();
+    }
+    if (pl) {
+      closeSheet();
+      renderMeta(pl);
+      toast('Clé enregistrée : recherche des tonalités et des tempos…');
+      keyTried.delete(pl.id);
+      autoKeys(pl);
+    }
     return;
   }
   if (e.target.id === 'tune-form') {

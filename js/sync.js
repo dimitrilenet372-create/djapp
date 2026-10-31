@@ -93,7 +93,17 @@ export function gistStore(token, fetchFn = (...a) => fetch(...a)) {
 }
 
 /** Texte à stocker : la bibliothèque sérialisée + l'heure de la dernière modification. */
-export const withStamp = (libText, updated) => JSON.stringify({ ...JSON.parse(libText), updated });
+export const withStamp = (libText, updated, extra = {}) => JSON.stringify({ ...JSON.parse(libText), updated, ...extra });
+
+/** Clé GetSongBPM rangée dans le document, pour que le téléphone n'ait rien à saisir (chaîne vide si absente). */
+export function gsbOf(doc) {
+  try {
+    const g = JSON.parse(doc).gsb;
+    return typeof g === 'string' && /^[\w-]{8,}$/.test(g) ? g : '';
+  } catch {
+    return '';
+  }
+}
 
 /** Heure de modification d'un document distant (0 si absente ou illisible). */
 export function stampOf(doc) {

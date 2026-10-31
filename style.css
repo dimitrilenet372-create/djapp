@@ -184,6 +184,8 @@ main { max-width: 1240px; margin: 0 auto; padding: clamp(24px, 4vw, 44px) var(--
   background: hsl(var(--k) 85% 78%); box-shadow: inset 0 0 0 1.5px hsl(var(--k) 55% 45%);
 }
 .tune-key[data-auto="1"] { box-shadow: none; border: 1.5px dashed hsl(var(--k) 55% 35%); }
+.keys-hint { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: #fff; border: 1.5px dashed var(--line); font-size: 0.9375rem; }
+.keys-hint[hidden] { display: none; }
 .credit { color: var(--muted); }
 .credit a { color: inherit; }
 .tune-key[data-b="1"] { background: hsl(var(--k) 90% 86%); }
