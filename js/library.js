@@ -252,45 +252,119 @@ export function keyLink(ka, kb) {
 /** Coût et description d'un enchaînement a → b (plus c'est bas, mieux ça se mixe). */
 function link(ctx, a, b) {
   const parts = [];
+  const tips = []; // [priorité, conseil] : les problèmes d'abord
   let cost = 0;
   const sameFamily = ctx.fam.has(a.id) && ctx.fam.get(a.id) === ctx.fam.get(b.id);
   if (sameFamily) {
     cost -= 1; // les versions d'un même titre se placent côte à côte
     parts.push('versions du même titre');
+    tips.push([1, 'Même morceau en deux versions : passe de l\'une à l\'autre sur un break, ça passe inaperçu.']);
   } else {
     const sa = ctx.style.get(a.id);
     const sb = ctx.style.get(b.id);
     const d = styleDistance(sa, sb);
     cost += d;
     parts.push(d === 0 ? `même style (${sa})` : d === 1 ? `style voisin (${sa} → ${sb})` : d === 1.5 ? 'style inconnu' : `changement de style (${sa} → ${sb})`);
-    if (a.nArtist && a.nArtist === b.nArtist) cost += 0.5; // varier les artistes
+    if (a.nArtist && a.nArtist === b.nArtist) {
+      cost += 0.5; // varier les artistes
+      tips.push([6, 'Même artiste que le titre d\'avant : intercale un autre univers pour varier.']);
+    }
+    if (d >= 3) tips.push([2, 'Le style change : fais-le sur un break, avec un filtre ou une coupe nette, pas en long fondu.']);
+    else if (d === 1) tips.push([5, 'Styles voisins : un fondu d\'une trentaine de secondes suffit.']);
+    else if (d === 0) tips.push([7, 'Même style : un fondu long (16 à 32 temps) fonctionne bien.']);
   }
   if (a.bpm && b.bpm) {
     const gap = Math.abs(a.bpm - b.bpm) / Math.max(a.bpm, b.bpm);
     const half = Math.abs(a.bpm * 2 - b.bpm) / Math.max(a.bpm * 2, b.bpm);
     const half2 = Math.abs(b.bpm * 2 - a.bpm) / Math.max(b.bpm * 2, a.bpm);
     const rounded = `${Math.round(a.bpm)} → ${Math.round(b.bpm)} BPM`;
-    if (gap <= 0.03) parts.push(`tempo proche (${rounded})`);
-    else if (gap <= BPM_TOLERANCE) { cost += 0.5; parts.push(`tempo à ajuster (${rounded})`); }
-    else if (Math.min(half, half2) <= 0.03) { cost += 1; parts.push(`tempo moitié/double (${rounded})`); }
-    else { cost += 2.5; parts.push(`écart de tempo (${rounded})`); }
+    const pct = (Math.round(gap * 1000) / 10).toString().replace('.', ',');
+    if (gap <= 0.03) {
+      parts.push(`tempo proche (${rounded})`);
+      tips.push([4, 'Tempos proches : cale-les (sync) et profite d\'un long fondu.']);
+    } else if (gap <= BPM_TOLERANCE) {
+      cost += 0.5;
+      parts.push(`tempo à ajuster (${rounded})`);
+      tips.push([3, `Ajuste le pitch d'environ ${pct} % avant de lancer le titre suivant.`]);
+    } else if (Math.min(half, half2) <= 0.03) {
+      cost += 1;
+      parts.push(`tempo moitié/double (${rounded})`);
+      tips.push([3, 'Un titre va deux fois plus vite que l\'autre : enchaîne en double-temps, la batterie se cale d\'un coup sur deux.']);
+    } else {
+      cost += 2.5;
+      parts.push(`écart de tempo (${rounded})`);
+      tips.push([1, 'Écart trop grand pour caler les deux : coupe franc, passe par un break ou un effet, ou accélère par paliers.']);
+    }
   }
   const k = keyLink(a.key, b.key);
   if (k) {
     cost += k.cost;
     parts.push(k.label);
+    if (k.cost >= 2.5) tips.push([1, 'Les tonalités s\'opposent : évite de superposer les deux longtemps. Coupe les médiums à l\'EQ ou passe par un break.']);
+    else if (k.cost >= 0.75) tips.push([3, 'Tonalité à surveiller : fondu court, ou baisse les basses du titre entrant le temps du mélange.']);
+    else tips.push([4, 'Tonalités compatibles : tu peux laisser jouer les deux ensemble assez longtemps.']);
   }
-  return { cost, tone: cost <= 1 ? 'good' : cost <= 2 ? 'ok' : 'weak', label: parts.join(' · ') };
+  if (a.duration >= 420) tips.push([5, 'Titre long : tu as le temps, laisse-le vivre avant de lancer le suivant.']);
+  else if (a.duration && a.duration <= 150) tips.push([5, 'Titre court : prépare le suivant dès le début.']);
+  tips.sort((x, y) => x[0] - y[0]);
+  return {
+    cost,
+    tone: cost <= 1 ? 'good' : cost <= 2 ? 'ok' : 'weak',
+    label: parts.join(' · '),
+    tip: tips.slice(0, 2).map((x) => x[1]),
+  };
 }
 
-/** Pour chaque paire de titres voisins dans la liste : { tone: 'good' | 'ok' | 'weak', label }. */
+/** Pour chaque paire de titres voisins dans la liste : { tone: 'good' | 'ok' | 'weak', label, tip: [conseils] }. */
 export function transitionsOf(tracks) {
   const ctx = prepareSet(tracks);
   const out = [];
   for (let i = 0; i + 1 < tracks.length; i++) {
-    const { tone, label } = link(ctx, tracks[i], tracks[i + 1]);
-    out.push({ tone, label });
+    const { tone, label, tip } = link(ctx, tracks[i], tracks[i + 1]);
+    out.push({ tone, label, tip });
   }
+  return out;
+}
+
+/**
+ * Vue d'ensemble d'un set : durée, courbe de tempo, tonalités connues, passages à préparer et conseils généraux.
+ * Elle ne s'appuie que sur ce que l'app sait de chaque titre ; le moment exact des drops n'est pas connu.
+ */
+export function setAdvice(tracks) {
+  const trans = transitionsOf(tracks);
+  const bpms = tracks.map((t) => t.bpm).filter(Boolean);
+  const keys = tracks.filter((t) => t.key).length;
+  const weak = trans
+    .map((x, i) => ({ ...x, from: tracks[i], to: tracks[i + 1] }))
+    .filter((x) => x.tone === 'weak');
+  const out = {
+    count: tracks.length,
+    seconds: totalSeconds(tracks),
+    bpmKnown: bpms.length,
+    bpmMin: bpms.length ? Math.min(...bpms) : null,
+    bpmMax: bpms.length ? Math.max(...bpms) : null,
+    keysKnown: keys,
+    weak,
+    good: trans.filter((x) => x.tone === 'good').length,
+    tips: [],
+  };
+  if (tracks.length < 2) return out;
+  if (bpms.length >= Math.ceil(tracks.length / 2) && bpms.length >= 3) {
+    const first = bpms[0];
+    const last = bpms[bpms.length - 1];
+    const span = out.bpmMax - out.bpmMin;
+    if (last - first >= 4 && span <= 25) out.tips.push(`Le tempo monte de ${Math.round(first)} à ${Math.round(last)} BPM : bonne courbe pour faire monter la salle.`);
+    else if (first - last >= 4 && span <= 25) out.tips.push(`Le tempo descend de ${Math.round(first)} à ${Math.round(last)} BPM : un set pour finir en douceur.`);
+    else if (span > 25) out.tips.push(`Le tempo va de ${Math.round(out.bpmMin)} à ${Math.round(out.bpmMax)} BPM : prévois des paliers pour ne pas brusquer la danse.`);
+    else out.tips.push('Le tempo reste stable : tu peux t\'appuyer sur les fondus longs.');
+  }
+  if (keys < tracks.length) {
+    out.tips.push(keys ? `Il manque la tonalité de ${tracks.length - keys} titre${tracks.length - keys > 1 ? 's' : ''} : les conseils de tonalité ne couvrent que les autres.` : 'Aucune tonalité connue : renseigne-les (ou « Trouver les tonalités ») pour des conseils sur les mélanges harmoniques.');
+  }
+  if (!bpms.length) out.tips.push('Aucun tempo connu : sans BPM, impossible de dire quels titres se calent bien.');
+  if (weak.length) out.tips.push(`${weak.length} passage${weak.length > 1 ? 's' : ''} à préparer : prévois un break, un effet ou une coupe franche à ces endroits.`);
+  else if (tracks.length >= 3) out.tips.push('Aucun saut difficile : concentre-toi sur le moment du fondu plutôt que sur le choix des titres.');
+  out.tips.push('Le moment exact des drops et des breaks n\'est pas connu de l\'app, qui ne peut pas écouter SoundCloud. Pose-les toi-même en cue points dans Serato en écoutant chaque titre une fois.');
   return out;
 }
 

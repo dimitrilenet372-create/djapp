@@ -414,6 +414,16 @@ test('créer un set DJ à partir de deux playlists', async () => {
   assert.match($('.gap-weak').textContent, /^À préparer · changement de style/);
   assert.match($('#pl-meta').textContent, /1 enchaînement à préparer/);
   assert.equal($('#order').textContent, 'Réordonner le set');
+  assert.ok($$('.gap-tip').length >= 5, 'un conseil sous chaque enchaînement');
+  assert.match($('.gap-weak .gap-tip').textContent, /Le style change/);
+  assert.equal($('#mixtips').hidden, false);
+  click($('#mixtips'));
+  assert.equal($('#sheet').hidden, false);
+  assert.match($('#sheet-title').textContent, /Conseils de mix/);
+  assert.equal($$('.mix-step').length, 5);
+  assert.match($('#sheet-body').textContent, /cue points dans Serato/);
+  click($('#sheet-x'));
+  assert.equal($('#sheet').hidden, true);
   click($('#back'));
   assert.equal($('#tab-sets').getAttribute('aria-selected'), 'true', 'retour sur l\'onglet des sets');
   assert.equal(cards().length, setsBefore + 1);

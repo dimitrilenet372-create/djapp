@@ -7,7 +7,7 @@ import * as KY from './keys.js';
 import * as SE from './serato.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
-const VERSION = '2026-10-31-o';
+const VERSION = '2026-10-31-p';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -239,6 +239,30 @@ function getSheet(pl) {
     <div class="sheet-foot"><button type="button" class="link" data-act="copy-get" data-id="${pl.id}">Copier les liens</button></div>`);
 }
 
+function mixSheet(pl) {
+  const adv = L.setAdvice(pl.tracks);
+  const trans = L.transitionsOf(pl.tracks);
+  const bpm = adv.bpmKnown ? (adv.bpmMin === adv.bpmMax ? `${Math.round(adv.bpmMin)} BPM` : `${Math.round(adv.bpmMin)} à ${Math.round(adv.bpmMax)} BPM`) : 'tempo inconnu';
+  const stats = [
+    plural(adv.count, 'titre', 'titres'),
+    adv.seconds ? L.formatDuration(adv.seconds) : '',
+    bpm,
+    `tonalité connue pour ${adv.keysKnown} sur ${adv.count}`,
+  ].filter(Boolean);
+  const rows = trans
+    .map((x, i) => {
+      const a = pl.tracks[i];
+      const b = pl.tracks[i + 1];
+      return `<li class="mix-step gap-${x.tone}"><b>${esc(core.labelOf(a))} <span aria-hidden="true">→</span> ${esc(core.labelOf(b))}</b><span class="mix-why">${esc(x.label)}</span>${x.tip.map((t) => `<span class="mix-tip">${esc(t)}</span>`).join('')}</li>`;
+    })
+    .join('');
+  openSheet(`<h2 id="sheet-title">Conseils de mix</h2>
+    <p class="mix-stats">${stats.map(esc).join(' · ')}</p>
+    <ul class="mix-tips">${adv.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
+    <h3 class="mix-h">Enchaînement par enchaînement</h3>
+    <ol class="mix-steps">${rows}</ol>`);
+}
+
 function rowHtml(t, dup, dj = false) {
   const shown = t.familyId ? core.parseVersion(t.title).base || t.title : t.title;
   const badge = dup
@@ -321,12 +345,13 @@ function renderDetail() {
   renderMeta(pl, weak);
   $('#order').textContent = pl.dj ? 'Réordonner le set' : 'Ordonner pour DJer';
   $('#order').disabled = pl.tracks.length < 3;
+  $('#mixtips').hidden = !pl.dj || pl.tracks.length < 2;
   $('#tracks').classList.toggle('is-set', Boolean(pl.dj));
   $('#tracks').innerHTML = pl.tracks.length
     ? pl.tracks
         .map((t, i) => {
           const x = trans[i];
-          const gap = x ? `<li class="gap gap-${x.tone}" role="presentation"><span>${x.tone === 'weak' ? 'À préparer · ' : ''}${esc(x.label)}</span></li>` : '';
+          const gap = x ? `<li class="gap gap-${x.tone}" role="presentation"><span>${x.tone === 'weak' ? 'À préparer · ' : ''}${esc(x.label)}</span>${x.tip.length ? `<small class="gap-tip">${esc(x.tip[0])}</small>` : ''}</li>` : '';
           return rowHtml(t, dups.get(t.id), Boolean(pl.dj)) + gap;
         })
         .join('')
@@ -1144,6 +1169,10 @@ $('#findkeys').addEventListener('click', () => {
 $('#getlist').addEventListener('click', () => {
   const pl = current();
   if (pl) getSheet(pl);
+});
+$('#mixtips').addEventListener('click', () => {
+  const pl = current();
+  if (pl) mixSheet(pl);
 });
 $('#order').addEventListener('click', () => {
   const pl = current();

@@ -257,3 +257,35 @@ test('buildSet met les tonalités compatibles côte à côte et le dit sur chaqu
   assert.equal(tr[1].tone, 'weak');
   assert.match(tr[2].label, /tonalités voisines/);
 });
+
+test('conseils d\'enchaînement : tonalité, tempo, style, durée', () => {
+  const mk = (t, extra) => core.makeTrack({ artist: `Art ${t}`, title: `Morceau ${t}`, genre: 'House', ...extra });
+  const tip = (a, b) => L.transitionsOf([a, b])[0].tip.join(' ');
+  assert.match(tip(mk('A', { key: '8A' }), mk('B', { key: '2A' })), /tonalités s'opposent/);
+  assert.match(tip(mk('A', { key: '8A' }), mk('B', { key: '9A' })), /compatibles/);
+  assert.match(tip(mk('A', { bpm: 120 }), mk('B', { bpm: 127 })), /pitch d'environ 5,5 %/);
+  assert.match(tip(mk('A', { bpm: 70 }), mk('B', { bpm: 140 })), /double-temps/);
+  assert.match(tip(mk('A', { bpm: 100 }), mk('B', { bpm: 140 })), /Écart trop grand/);
+  assert.match(tip(mk('A', { genre: 'House' }), mk('B', { genre: 'Drum & Bass', tags: ['dnb'] })), /style change/);
+  assert.match(tip(mk('A', { duration: 500 }), mk('B')), /Titre long/);
+  const t = L.transitionsOf([mk('A', { key: '8A', bpm: 100, duration: 500 }), mk('B', { key: '2A', bpm: 140 })])[0];
+  assert.ok(t.tip.length <= 2, 'deux conseils au plus, les problèmes d\'abord');
+  assert.match(t.tip[0], /tonalités s'opposent|Écart trop grand/);
+});
+
+test('conseils du set : courbe de tempo, tonalités manquantes, honnêteté sur les drops', () => {
+  const mk = (t, bpm, key) => core.makeTrack({ artist: `Art ${t}`, title: `Morceau ${t}`, genre: 'House', bpm, key, duration: 240 });
+  const adv = L.setAdvice([mk('A', 120, '8A'), mk('B', 123, '9A'), mk('C', 126, ''), mk('D', 128, '9A')]);
+  assert.equal(adv.count, 4);
+  assert.equal(adv.seconds, 960);
+  assert.equal(adv.bpmMin, 120);
+  assert.equal(adv.bpmMax, 128);
+  assert.equal(adv.keysKnown, 3);
+  const all = adv.tips.join(' | ');
+  assert.match(all, /monte de 120 à 128 BPM/);
+  assert.match(all, /manque la tonalité de 1 titre/);
+  assert.match(all, /cue points dans Serato/);
+  const none = L.setAdvice([core.makeTrack({ artist: 'x', title: 'a' }), core.makeTrack({ artist: 'y', title: 'b' })]);
+  assert.match(none.tips.join(' '), /Aucune tonalité connue/);
+  assert.match(none.tips.join(' '), /Aucun tempo connu/);
+});

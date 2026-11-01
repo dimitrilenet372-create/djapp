@@ -81,6 +81,12 @@ Ce qui sert à juger : le style (genre SoundCloud, tags, titre), le tempo et la 
 
 D'où viennent les tonalités : le favori reprend celle que l'artiste a indiquée sur SoundCloud (champ de tonalité, tags, début de la description, par exemple « Camelot 8A » ou « key: Am »). SoundCloud ne la renseigne pas toujours : sinon clique sur **+ clé** sous un titre pour la saisir (8A, Am, F# minor…), avec le tempo. L'app n'analyse pas l'audio : ni SoundCloud ni le navigateur ne lui donnent le son. Pour une analyse automatique, passe tes fichiers dans Mixxx, Serato ou Mixed In Key, puis reporte les valeurs ici.
 
+## Conseils de mix
+
+Dans un set, chaque enchaînement affiche un conseil sous sa ligne (fondu long, pitch à ajuster, double-temps, coupe sur un break, tonalités qui s'opposent…). Le bouton **Conseils de mix** ouvre une vue d'ensemble : durée, courbe de tempo, tonalités connues, passages à préparer, puis les deux conseils les plus utiles pour chaque enchaînement.
+
+Les conseils ne reposent que sur ce que l'app sait de chaque titre : style, durée, tempo et tonalité quand ils sont connus. L'app ne peut pas écouter SoundCloud, donc elle ne connaît pas le moment des drops ni des breaks. Pose-les en cue points dans Serato en écoutant chaque titre une fois.
+
 ## Écouter et enchaîner
 
 - **Lecteur.** Clique sur un titre (n'importe où sur sa ligne) pour l'écouter : un lecteur apparaît en bas (précédent, pause, suivant) et enchaîne les titres de la playlist, doublons exceptés. C'est le lecteur officiel de SoundCloud : il ne joue que les titres que leurs artistes autorisent hors de SoundCloud. Pour les autres, ouvre le titre sur SoundCloud (lien dans le lecteur). Un titre sans lien ni identifiant SoundCloud n'a pas de bouton d'écoute.
