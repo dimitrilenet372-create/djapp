@@ -81,6 +81,22 @@ Ce qui sert à juger : le style (genre SoundCloud, tags, titre), le tempo et la 
 
 D'où viennent les tonalités : le favori reprend celle que l'artiste a indiquée sur SoundCloud (champ de tonalité, tags, début de la description, par exemple « Camelot 8A » ou « key: Am »). SoundCloud ne la renseigne pas toujours : sinon clique sur **+ clé** sous un titre pour la saisir (8A, Am, F# minor…), avec le tempo. L'app n'analyse pas l'audio : ni SoundCloud ni le navigateur ne lui donnent le son. Pour une analyse automatique, passe tes fichiers dans Mixxx, Serato ou Mixed In Key, puis reporte les valeurs ici.
 
+## Supprimer des playlists
+
+Chaque carte de l'accueil a un bouton **Supprimer**. Pour en retirer plusieurs d'un coup, clique sur **Choisir** sur chacune, puis sur **Supprimer** dans la barre du bas. Un bandeau propose **Annuler** pendant neuf secondes. Rien n'est supprimé de SoundCloud, seulement de cette page (et de tes autres appareils si la synchro est active).
+
+## Partager par lien
+
+Dans une playlist ou un set, **Partager par lien** copie une adresse qui contient la playlist (titres, tonalités, tempos, mode set), compressée après le `#`. Rien n'est envoyé à un serveur. Celui qui ouvre le lien reçoit une copie dans sa page, avec « Annuler » si ce n'est pas ce qu'il voulait. Au-delà d'une centaine de titres le lien devient long : la synchro Google est plus fiable pour ses propres appareils.
+
+## Importer tonalités et BPM
+
+**Importer tonalités et BPM** lit un export de Mixxx, rekordbox, Mixed In Key ou d'un tableur (CSV, point-virgule ou tabulations, UTF-8 ou UTF-16) : colonnes Artiste, Titre, Tonalité, BPM. Les titres sont rapprochés par artiste et titre ; un remix n'hérite pas de la tonalité de l'original ; ce que tu as déjà saisi n'est jamais écrasé. Les tonalités Open Key (Traktor) sont converties en Camelot. Serato DJ n'exporte pas ses tonalités dans un fichier.
+
+## Hors ligne et installation
+
+L'app fonctionne sans réseau (`sw.js` garde la page et les scripts ; tes playlists sont déjà dans le navigateur). Hors ligne, l'écoute, la recherche de tonalités et la synchro attendent le retour du réseau. Sur téléphone, « Ajouter à l'écran d'accueil » l'installe comme une app (`manifest.webmanifest`).
+
 ## Conseils de mix
 
 Dans un set, chaque enchaînement affiche un conseil sous sa ligne (fondu long, pitch à ajuster, double-temps, coupe sur un break, tonalités qui s'opposent…). Le bouton **Conseils de mix** ouvre une vue d'ensemble : durée, courbe de tempo, tonalités connues, passages à préparer, puis les deux conseils les plus utiles pour chaque enchaînement.

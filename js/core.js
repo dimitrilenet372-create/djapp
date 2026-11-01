@@ -413,7 +413,8 @@ function trackFromLine(line, source) {
 
 export function parseCsvRows(text) {
   const first = text.split(/\r?\n/, 1)[0];
-  const delim = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : ',';
+  const count = (c) => (first.match(c) || []).length;
+  const delim = count(/\t/g) > Math.max(count(/;/g), count(/,/g)) ? '\t' : count(/;/g) > count(/,/g) ? ';' : ',';
   const rows = [];
   let row = [];
   let cell = '';

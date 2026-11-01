@@ -568,6 +568,87 @@ test('les playlists sont enregistrées dans le navigateur et se rechargent', asy
   assert.ok(saved.some((p) => p.name === 'Chill é' && p.art === 'artworks-cover-z' && p.tracks[0].scid === 11));
 });
 
+test('supprimer depuis l\'accueil : un bouton par carte, plusieurs d\'un coup, annulation', async () => {
+  tab('playlists');
+  const before = names();
+  assert.ok(before.length >= 2, 'au moins deux playlists');
+  assert.equal($$('.pick-del').length, cards().length, 'un bouton Supprimer par carte');
+  const first = before[0];
+  const countStored = stored().length;
+  click($('.pick-del', cards()[0]));
+  assert.ok(!names().includes(first));
+  await wait(350);
+  assert.equal(stored().length, countStored - 1);
+  assert.match($('#toast').textContent, new RegExp(`« ${first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} » supprimée`));
+  click($('.toast-btn'));
+  assert.ok(names().includes(first), 'annuler remet la playlist');
+  await wait(350);
+  assert.equal(stored().length, countStored);
+  // plusieurs d'un coup, via « Choisir »
+  const n = cards().length;
+  click($('.pick', cards()[0]));
+  click($('.pick', cards()[1]));
+  assert.equal($('#homebar').hidden, false);
+  click($('#hb-delete'));
+  assert.equal(cards().length, n - 2);
+  assert.equal($('#homebar').hidden, true);
+  assert.match($('#toast').textContent, /2 playlists supprimées/);
+  click($('.toast-btn'));
+  assert.equal(cards().length, n);
+});
+
+test('partager par lien : le lien copié, ouvert ailleurs, ajoute une copie qu\'on peut annuler', async () => {
+  tab('sets');
+  const before = cards().length;
+  open(0);
+  const title = $('#pl-name').value;
+  globalThis.__copied = '';
+  click($('#share'));
+  await wait(50);
+  assert.match(globalThis.__copied, /#share=z\.[\w-]+$/);
+  assert.match($('#toast').textContent, /Lien copié/);
+  click($('#back'));
+  const hash = globalThis.__copied.slice(globalThis.__copied.indexOf('#'));
+  window.location.hash = hash;
+  await wait(80);
+  assert.equal(window.location.hash, '', 'adresse nettoyée');
+  assert.equal(cards().length, before + 1);
+  assert.match($('#toast').textContent, /reçue/);
+  assert.ok(names().includes(`${title} (2)`) || names().some((n) => n.startsWith(title)));
+  click($('.toast-btn'));
+  assert.equal(cards().length, before, 'annuler retire la copie reçue');
+  window.location.hash = '#share=z.pasvalide';
+  await wait(50);
+  assert.match($('#toast').textContent, /incomplet ou abîmé/);
+  assert.equal(cards().length, before);
+});
+
+test('importer tonalités et BPM depuis un export : collé, appliqué, annulable', async () => {
+  tab('playlists');
+  const i = names().indexOf('Warm-up');
+  assert.ok(i >= 0);
+  open(i);
+  const pl = stored().find((p) => p.name === 'Warm-up');
+  const t = pl.tracks.find((x) => !x.key && !x.bpm);
+  assert.ok(t, 'un titre sans tonalité ni tempo');
+  click($('#tunefile'));
+  assert.match($('#sheet-title').textContent, /Importer tonalités et BPM/);
+  type($('#tunefile-text'), 'Foo,Bar\n1,2');
+  click($('#tunefile-form button[type="submit"]'));
+  $('#tunefile-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.match($('#tunefile-warn').textContent, /colonne « Titre »/);
+  type($('#tunefile-text'), `Artist;Title;Key;BPM\n${t.artist};${t.title};6A;126,5`);
+  $('#tunefile-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.equal(sheetOpen(), false);
+  assert.match($('#notice').textContent, /1 tonalité et 1 tempo/);
+  const row = rows().find((r) => $('.trk-title', r).textContent.startsWith(t.title.slice(0, 8)));
+  assert.match(row.textContent, /6A/);
+  assert.match(row.textContent, /127|126/);
+  click($('[data-act="undo"]'));
+  assert.doesNotMatch(rows().map((r) => r.textContent).join(' '), /6A/);
+  click($('#back'));
+});
+
 test('aucune erreur JavaScript levée', () => {
   assert.deepEqual(errors.map((e) => e.message), []);
 });

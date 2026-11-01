@@ -5,9 +5,11 @@ import { createCloud } from './cloud.js';
 import { firebaseBackend } from './firebase.js';
 import * as KY from './keys.js';
 import * as SE from './serato.js';
+import * as SH from './share.js';
+import * as TF from './tunefile.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
-const VERSION = '2026-11-01-a';
+const VERSION = '2026-11-01-b';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -63,9 +65,21 @@ const playableUrl = (t) => safeUrl(t.url) || (t.scid ? `https://api.soundcloud.c
 // Message, copie, téléchargement
 // --------------------------------------------------------------------------- //
 let toastTimer;
-function toast(msg, ms = 3400) {
+function toast(msg, ms = 3400, action = null) {
   const el = $('#toast');
   el.textContent = msg;
+  el.classList.toggle('has-action', Boolean(action));
+  if (action) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'toast-btn';
+    b.textContent = action.label;
+    b.addEventListener('click', () => {
+      el.classList.remove('show');
+      action.run();
+    });
+    el.append(b);
+  }
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), ms);
@@ -168,11 +182,36 @@ function renderHome() {
       return `<article class="card${on ? ' is-picked' : ''}${pl.dj ? ' is-set' : ''}" data-id="${pl.id}" style="--i:${Math.min(i, 10)}">
         <button type="button" class="card-open" data-act="open" aria-label="Ouvrir ${pl.dj ? 'le set ' : ''}${esc(pl.name)}">${coverHtml(pl)}
           <p class="card-name">${esc(pl.name)}</p><p class="card-meta">${esc(metaOf(pl))}</p></button>
-        <button type="button" class="pick" data-act="pick" aria-pressed="${on}" aria-label="Choisir ${esc(pl.name)} pour comparer, fusionner ou créer un set">${on ? '✓ Choisie' : 'Choisir'}</button>
+        <div class="card-tools">
+          <button type="button" class="pick" data-act="pick" aria-pressed="${on}" aria-label="Choisir ${esc(pl.name)} pour comparer, fusionner ou créer un set">${on ? '✓ Choisie' : 'Choisir'}</button>
+          <button type="button" class="pick pick-del" data-act="delete" aria-label="Supprimer ${esc(pl.name)}">Supprimer</button>
+        </div>
       </article>`;
     })
     .join('');
   renderHomebar();
+}
+
+/** Retire des playlists de cette page (jamais de SoundCloud) ; « Annuler » les remet, sous de nouveaux identifiants pour que la synchro les prenne pour de nouvelles playlists. */
+function removePlaylists(ids, withUndo = true) {
+  const gone = state.lib.map((pl, index) => ({ pl, index })).filter((x) => ids.includes(x.pl.id));
+  if (!gone.length) return;
+  state.lib = state.lib.filter((p) => !ids.includes(p.id));
+  for (const id of ids) state.picked.delete(id);
+  saveSoon();
+  const msg = gone.length === 1 ? `« ${gone[0].pl.name} » supprimée.` : `${gone.length} playlists supprimées.`;
+  if (withUndo) {
+    toast(msg, 9000, {
+      label: 'Annuler',
+      run: () => {
+        for (const { pl, index } of gone) state.lib.splice(Math.min(index, state.lib.length), 0, { ...pl, id: L.newId() });
+        saveSoon();
+        if (state.view === 'home') renderHome();
+        toast('Remise en place.');
+      },
+    });
+  } else toast(msg);
+  if (state.view === 'home') renderHome();
 }
 
 function setTab(tab) {
@@ -333,6 +372,7 @@ function renderDetail() {
   $('#recreate').disabled = pl.tracks.length === 0;
   $('#split').disabled = pl.tracks.length < 2;
   $('#export').disabled = pl.tracks.length === 0;
+  $('#tunefile').disabled = pl.tracks.length === 0;
   $('#serato').disabled = pl.tracks.length === 0;
   const nKey = needsKey(pl).length;
   $('#findkeys').disabled = pl.tracks.length === 0;
@@ -565,6 +605,42 @@ function seratoDownload(kind) {
   if (kind === 'crate') download(`${name}.crate`, SE.makeCrate(found.map((f) => f.path)), 'application/octet-stream');
   else download(`${name}.m3u8`, SE.makeM3u(found), 'audio/x-mpegurl;charset=utf-8');
   toast(`${plural(found.length, 'titre', 'titres')} dans « ${name} ».`);
+}
+
+function tuneFileSheet(pl, message = '') {
+  const need = pl.tracks.filter((t) => !t.key || !t.bpm).length;
+  openSheet(`<h2 id="sheet-title">Importer tonalités et BPM</h2>
+    <p>${need ? `${plural(need, 'titre n\'a', 'titres n\'ont')} pas encore tout.` : 'Tous les titres ont déjà leur tonalité et leur tempo.'} Charge un export de ton logiciel : l'app remplit ce qui manque, sans toucher à ce que tu as déjà saisi.</p>
+    <ul class="mix-tips">
+      <li><b>Mixxx</b> : exporte une playlist en CSV ou en fichier texte (clic droit sur la playlist).</li>
+      <li><b>rekordbox</b> : exporte une playlist en fichier texte (clic droit sur la playlist).</li>
+      <li><b>Mixed In Key</b> ou <b>un tableur</b> : colonnes Artiste, Titre, Tonalité, BPM.</li>
+      <li><b>Serato DJ</b> n'exporte pas ses tonalités dans un fichier : passe par l'un des autres.</li>
+    </ul>
+    <label class="file-pick"><span class="btn btn-small btn-solid">Choisir un fichier</span>
+      <input id="tunefile-input" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" data-pl="${pl.id}"></label>
+    <form id="tunefile-form" class="paste" autocomplete="off" data-pl="${pl.id}">
+      <label for="tunefile-text"><b>Ou colle le contenu ici</b></label>
+      <textarea id="tunefile-text" placeholder="Artist;Title;Key;BPM&#10;Aya;Night Drive;8A;122" spellcheck="false"></textarea>
+      <p class="warn" id="tunefile-warn"${message ? '' : ' hidden'}>${esc(message)}</p>
+      <div class="paste-foot"><button type="submit" class="btn btn-small btn-solid">Importer</button></div>
+    </form>`);
+}
+
+/** Applique un export (texte) à une playlist ; annulable depuis le bandeau. Renvoie un message d'erreur, ou '' si tout va bien. */
+function importTunes(pl, text) {
+  const { rows, error } = TF.parseTuneFile(text);
+  if (error) return error;
+  const hits = new Map(TF.matchTunes(pl.tracks, rows).map((h) => [h.id, h]));
+  if (!hits.size) return `Aucun titre de « ${pl.name} » trouvé dans le fichier (${plural(rows.length, 'ligne lue', 'lignes lues')}), ou ils ont déjà tout.`;
+  const nKey = [...hits.values()].filter((h) => h.key).length;
+  const nBpm = [...hits.values()].filter((h) => h.bpm).length;
+  closeSheet();
+  mutate(pl, pl.tracks.map((t) => {
+    const h = hits.get(t.id);
+    return h ? { ...t, key: h.key || t.key, keyAuto: h.key ? false : t.keyAuto, bpm: h.bpm || t.bpm } : t;
+  }), `Importé depuis ton fichier : ${plural(nKey, 'tonalité', 'tonalités')} et ${plural(nBpm, 'tempo', 'tempos')}.`);
+  return '';
 }
 
 function tuneSheet(pl, t) {
@@ -912,6 +988,57 @@ function handleImport() {
 }
 window.addEventListener('hashchange', handleImport);
 
+/** Lien de partage ouvert : la playlist est ajoutée à cette page, avec « Annuler » si c'était une erreur. */
+async function handleShare() {
+  const code = SH.shareFromHash(window.location.hash);
+  if (!code) return;
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  const got = await SH.decodeShare(code);
+  if (!got) {
+    toast('Ce lien de partage est incomplet ou abîmé. Demande-en un nouveau.');
+    return;
+  }
+  const pl = addPlaylist(got.name, got.tracks.map((t) => core.makeTrack({ ...t, source: got.name })), got.art);
+  pl.dj = got.dj;
+  saveSoon();
+  closeSheet();
+  state.tab = tabOf(pl);
+  setView('home');
+  toast(`${pl.name} reçue : ${plural(pl.tracks.length, 'titre', 'titres')}.`, 9000, {
+    label: 'Annuler',
+    run: () => removePlaylists([pl.id], false),
+  });
+  autoKeys(pl);
+}
+window.addEventListener('hashchange', handleShare);
+
+function shareSheet(link) {
+  openSheet(`<h2 id="sheet-title">Lien de partage</h2>
+    <p>Copie ce lien et envoie-le. Celui qui l'ouvre reçoit une copie de la playlist dans sa page, avec les tonalités et tempos déjà remplis.</p>
+    <form class="paste" onsubmit="return false"><label class="sr-only" for="share-link">Lien</label>
+      <input id="share-link" readonly value="${esc(link)}"></form>
+    ${link.length > 6000 ? '<p class="warn">Lien long : certaines messageries le coupent. Pour une grande playlist, la synchro avec ton compte Google est plus fiable.</p>' : ''}`);
+  const input = $('#share-link');
+  input.focus();
+  input.select();
+}
+
+$('#share').addEventListener('click', async () => {
+  const pl = current();
+  if (!pl) return;
+  const link = `${appUrl()}#share=${await SH.encodeShare(pl)}`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: pl.name, url: link });
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+    }
+  }
+  if (await copyText(link)) toast(`Lien copié${pl.tracks.length > 100 ? ' (grande playlist : il est long)' : ''}. Envoie-le à qui tu veux.`);
+  else shareSheet(link);
+});
+
 // --------------------------------------------------------------------------- //
 // Lecteur SoundCloud (widget officiel) : ne joue que les titres que leurs artistes autorisent hors de SoundCloud
 // --------------------------------------------------------------------------- //
@@ -1114,12 +1241,14 @@ $('#grid').addEventListener('click', (e) => {
   const card = e.target.closest('.card');
   if (!btn || !card) return;
   if (btn.dataset.act === 'open') setView('detail', card.dataset.id);
+  else if (btn.dataset.act === 'delete') removePlaylists([card.dataset.id]);
   else if (btn.dataset.act === 'pick') {
     if (state.picked.has(card.dataset.id)) state.picked.delete(card.dataset.id);
     else state.picked.add(card.dataset.id);
     renderHome();
   }
 });
+$('#hb-delete').addEventListener('click', () => removePlaylists([...state.picked]));
 $('#hb-clear').addEventListener('click', () => {
   state.picked.clear();
   renderHome();
@@ -1165,6 +1294,10 @@ $('#keys-setup').addEventListener('click', () => {
 $('#findkeys').addEventListener('click', () => {
   const pl = current();
   if (pl) keysSheet(pl);
+});
+$('#tunefile').addEventListener('click', () => {
+  const pl = current();
+  if (pl) tuneFileSheet(pl);
 });
 $('#getlist').addEventListener('click', () => {
   const pl = current();
@@ -1225,10 +1358,8 @@ $('#notice').addEventListener('click', (e) => {
     renderNotice();
   } else if (act === 'delete-yes') {
     const pl = current();
-    state.lib = state.lib.filter((p) => p !== pl);
-    saveSoon();
     setView('home');
-    toast(pl ? `« ${pl.name} » supprimée.` : 'Supprimée.');
+    if (pl) removePlaylists([pl.id]);
   }
 });
 
@@ -1344,6 +1475,19 @@ $('#sheet-body').addEventListener('input', (e) => {
   }
   renderSerato();
 });
+$('#sheet-body').addEventListener('change', async (e) => {
+  if (e.target.id !== 'tunefile-input') return;
+  const pl = state.lib.find((p) => p.id === e.target.dataset.pl);
+  const file = e.target.files && e.target.files[0];
+  if (!pl || !file) return;
+  let err;
+  try {
+    err = importTunes(pl, TF.decodeText(new Uint8Array(await file.arrayBuffer())));
+  } catch {
+    err = 'Impossible de lire ce fichier.';
+  }
+  if (err) tuneFileSheet(pl, err);
+});
 $('#sheet-body').addEventListener('submit', async (e) => {
   if (e.target.id === 'gsb-form') {
     e.preventDefault();
@@ -1358,6 +1502,19 @@ $('#sheet-body').addEventListener('submit', async (e) => {
       toast('Clé enregistrée : recherche des tonalités et des tempos…');
       keyTried.delete(pl.id);
       autoKeys(pl);
+    }
+    return;
+  }
+  if (e.target.id === 'tunefile-form') {
+    e.preventDefault();
+    const pl = state.lib.find((p) => p.id === e.target.dataset.pl);
+    if (!pl) return closeSheet();
+    const text = $('#tunefile-text').value;
+    const err = text.trim() ? importTunes(pl, text) : 'Colle d\'abord le contenu du fichier, ou choisis un fichier.';
+    if (err) {
+      const warn = $('#tunefile-warn');
+      warn.textContent = err;
+      warn.hidden = false;
     }
     return;
   }
@@ -1417,4 +1574,12 @@ $('#stale').hidden = !pageVersion || pageVersion.content === VERSION;
 setView('home');
 renderSyncBtn();
 handleImport();
+handleShare();
 startCloud();
+
+// Mode hors ligne : la page et les scripts restent disponibles sans réseau (voir sw.js).
+if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
+  navigator.serviceWorker.register(`sw.js?v=${VERSION}`).catch(() => {});
+}
+window.addEventListener('offline', () => toast("Hors ligne : tes playlists restent là. L'écoute, la recherche des tonalités et la synchro reprendront avec le réseau.", 6000));
+window.addEventListener('online', () => toast('De retour en ligne.'));

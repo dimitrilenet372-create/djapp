@@ -123,6 +123,9 @@ main { max-width: 1240px; margin: 0 auto; padding: clamp(24px, 4vw, 44px) var(--
   border: 1.5px solid var(--line); background: none; color: var(--muted); font-size: 0.8125rem; font-weight: 700;
 }
 .pick:hover { border-color: var(--ink); color: var(--ink); }
+.card-tools { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
+.card-tools .pick { margin-top: 0; }
+.pick-del:hover { border-color: var(--hot); color: var(--warn); }
 .pick[aria-pressed="true"] { background: var(--klein); border-color: var(--klein); color: #fff; }
 .card.is-picked .cover { outline: 4px solid var(--klein); outline-offset: 2px; }
 
@@ -236,6 +239,8 @@ main { max-width: 1240px; margin: 0 auto; padding: clamp(24px, 4vw, 44px) var(--
   transition: opacity 0.2s, transform 0.2s;
 }
 .toast.show { opacity: 1; transform: none; }
+.toast.has-action { pointer-events: auto; display: flex; align-items: center; gap: 16px; }
+.toast-btn { background: none; border: 0; color: #ffd84a; font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; padding: 4px; }
 
 /* ---------- fenêtres ---------- */
 .sheet {
@@ -397,3 +402,7 @@ body.has-player .toast { bottom: 108px; }
 .se-list small { color: var(--muted); }
 .path { font-family: ui-monospace, monospace; font-size: 0.8125rem; background: #fff; padding: 1px 6px; border-radius: 6px; overflow-wrap: anywhere; }
 #se-result:empty { display: none; }
+
+.file-pick { display: inline-block; cursor: pointer; margin-top: 4px; }
+.file-pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.file-pick:focus-within .btn { outline: 3px solid var(--klein); outline-offset: 2px; }

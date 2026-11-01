@@ -6,12 +6,14 @@
   <title>Simple playlist, tes playlists SoundCloud rangées</title>
   <meta name="description" content="Ajoute tes playlists SoundCloud, retire les doublons en un clic et recrée la version propre sur ton compte.">
   <meta name="theme-color" content="#1d38f5">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d38f5'/%3E%3Crect x='6' y='7' width='6' height='5' rx='1.5' fill='%23ffd84d'/%3E%3Crect x='13' y='7' width='6' height='5' rx='1.5' fill='%23ff9cc2'/%3E%3Crect x='20' y='7' width='6' height='5' rx='1.5' fill='%235fd6b0'/%3E%3Crect x='6' y='14' width='20' height='11' rx='2' fill='white'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&display=swap" rel="stylesheet">
-  <meta name="app-version" content="2026-11-01-a">
-  <link rel="stylesheet" href="style.css?v=2026-11-01-a">
+  <meta name="app-version" content="2026-11-01-b">
+  <link rel="stylesheet" href="style.css?v=2026-11-01-b">
 </head>
 <body>
   <header class="top" id="top">
@@ -56,7 +58,9 @@
             <button type="button" id="mixtips" class="link" hidden>Conseils de mix</button>
             <button type="button" id="split" class="link">Ranger par style</button>
             <button type="button" id="findkeys" class="link">Trouver les tonalités</button>
+            <button type="button" id="tunefile" class="link">Importer tonalités et BPM</button>
             <button type="button" id="getlist" class="link">Titres à récupérer</button>
+            <button type="button" id="share" class="link">Partager par lien</button>
             <button type="button" id="serato" class="link">Exporter pour Serato</button>
             <button type="button" id="export" class="link">Exporter en CSV</button>
             <button type="button" id="delete" class="link danger">Supprimer</button>
@@ -75,6 +79,7 @@
     <button type="button" class="btn btn-go" id="hb-compare">Comparer</button>
     <button type="button" class="btn btn-go" id="hb-merge">Fusionner</button>
     <button type="button" class="btn btn-set" id="hb-set">Créer un set DJ</button>
+    <button type="button" class="btn btn-ghost" id="hb-delete">Supprimer</button>
     <button type="button" class="btn btn-ghost" id="hb-clear">Annuler</button>
   </div>
 
@@ -108,19 +113,21 @@
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-11-01-a",
-      "./js/core.js": "./js/core.js?v=2026-11-01-a",
-      "./js/library.js": "./js/library.js?v=2026-11-01-a",
-      "./js/bookmarklet.js": "./js/bookmarklet.js?v=2026-11-01-a",
-      "./js/sample.js": "./js/sample.js?v=2026-11-01-a",
-      "./js/zip.js": "./js/zip.js?v=2026-11-01-a",
-      "./js/serato.js": "./js/serato.js?v=2026-11-01-a",
-      "./js/keys.js": "./js/keys.js?v=2026-11-01-a",
-      "./js/cloud.js": "./js/cloud.js?v=2026-11-01-a",
-      "./js/firebase.js": "./js/firebase.js?v=2026-11-01-a"
+      "./js/app.js": "./js/app.js?v=2026-11-01-b",
+      "./js/core.js": "./js/core.js?v=2026-11-01-b",
+      "./js/library.js": "./js/library.js?v=2026-11-01-b",
+      "./js/bookmarklet.js": "./js/bookmarklet.js?v=2026-11-01-b",
+      "./js/sample.js": "./js/sample.js?v=2026-11-01-b",
+      "./js/zip.js": "./js/zip.js?v=2026-11-01-b",
+      "./js/serato.js": "./js/serato.js?v=2026-11-01-b",
+      "./js/keys.js": "./js/keys.js?v=2026-11-01-b",
+      "./js/cloud.js": "./js/cloud.js?v=2026-11-01-b",
+      "./js/firebase.js": "./js/firebase.js?v=2026-11-01-b",
+      "./js/share.js": "./js/share.js?v=2026-11-01-b",
+      "./js/tunefile.js": "./js/tunefile.js?v=2026-11-01-b"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-11-01-a"></script>
+  <script type="module" src="js/app.js?v=2026-11-01-b"></script>
 </body>
 </html>
