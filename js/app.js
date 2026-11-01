@@ -7,7 +7,7 @@ import * as KY from './keys.js';
 import * as SE from './serato.js';
 import { bookmarkletCode, bookmarkletHref, pusherCode, pusherHref } from './bookmarklet.js';
 
-const VERSION = '2026-10-31-p';
+const VERSION = '2026-11-01-a';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -424,7 +424,7 @@ function addSheet(message = '') {
   openSheet(`<h2 id="sheet-title">Ajouter une playlist</h2>
     <ol class="steps">
       <li><b>Une seule fois :</b> glisse ce bouton dans ta barre de favoris (Ctrl+Maj+B pour l'afficher).<br>
-        ${bmBlock('bm-link', '', 'Ajouter à Le bac', bookmarkletHref(appUrl()))}<br>
+        ${bmBlock('bm-link', '', 'Ajouter à Simple playlist', bookmarkletHref(appUrl()))}<br>
         <button type="button" class="link" data-act="copy-bm">Il ne se glisse pas ? Copier le code</button></li>
       <li>Ouvre sur <b>soundcloud.com</b> une playlist, un titre ou ta page <b>Likes</b> (ton profil, onglet Likes), puis clique sur ce favori. Les titres arrivent ici tout seuls.</li>
     </ol>
@@ -1046,7 +1046,7 @@ function ideasSheet() {
     <h3>Trouver de nouveaux sons</h3>
     <p>${
       safeUrl(t.url)
-        ? `<a class="link" href="${esc(safeUrl(t.url).replace(/[?#].*$/, '').replace(/\/+$/, ''))}/recommended" target="_blank" rel="noopener">Voir les sons similaires sur SoundCloud</a>. Sur cette page, clique sur le favori « Ajouter à Le bac » : ils arrivent ici comme une playlist, que tu peux fusionner dans ton set.`
+        ? `<a class="link" href="${esc(safeUrl(t.url).replace(/[?#].*$/, '').replace(/\/+$/, ''))}/recommended" target="_blank" rel="noopener">Voir les sons similaires sur SoundCloud</a>. Sur cette page, clique sur le favori « Ajouter à Simple playlist » : ils arrivent ici comme une playlist, que tu peux fusionner dans ton set.`
         : 'Ce titre n\'a pas de lien SoundCloud : impossible d\'ouvrir ses sons similaires.'
     }</p>
     <h3>${r.style ? `Même style : ${esc(r.style)}` : 'Même style'}</h3>
@@ -1398,7 +1398,7 @@ $('#sheet-body').addEventListener('submit', async (e) => {
     const onlyPlaylist = core.findUrls(text).some(core.isPlaylistUrl);
     addSheet(
       onlyPlaylist
-        ? "Un lien de playlist ne peut pas être lu depuis cette page : SoundCloud l'interdit aux sites tiers. Utilise le favori « Ajouter à Le bac » depuis la playlist."
+        ? "Un lien de playlist ne peut pas être lu depuis cette page : SoundCloud l'interdit aux sites tiers. Utilise le favori « Ajouter à Simple playlist » depuis la playlist."
         : 'Aucun titre reconnu. Écris un titre par ligne : Artiste - Titre.',
     );
     return;

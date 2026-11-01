@@ -1,4 +1,4 @@
-// Favori « Ajouter à Le bac » : tourne sur une page soundcloud.com, lit la playlist ou le titre
+// Favori « Ajouter à Simple playlist » : tourne sur une page soundcloud.com, lit la playlist ou le titre
 // affiché et l'envoie à l'app dans l'adresse (#import=…), sans rien envoyer à un serveur.
 //
 // `extractor` doit rester autonome : sa source est copiée telle quelle dans le favori
@@ -24,14 +24,14 @@ export async function extractor(win, appUrl) {
     }
   };
   const fail = (text) => {
-    say('Le bac : ' + text, 7000);
+    say('Simple playlist : ' + text, 7000);
   };
 
   try {
     if (!/(^|\.)soundcloud\.com$/.test(win.location.hostname)) {
       return fail('ouvre une playlist sur soundcloud.com, puis clique sur ce favori.');
     }
-    say('Le bac : lecture de la playlist…');
+    say('Simple playlist : lecture de la playlist…');
 
     // identifiant que la page utilise elle-même pour parler à SoundCloud
     let clientId = '';
@@ -88,7 +88,7 @@ export async function extractor(win, appUrl) {
       tracks = [];
       let next = 'https://api-v2.soundcloud.com/users/' + user.id + '/track_likes?limit=100&client_id=' + clientId;
       for (let page = 0; next && page < 100; page++) {
-        say('Le bac : lecture des likes… ' + tracks.length);
+        say('Simple playlist : lecture des likes… ' + tracks.length);
         const r = await win.fetch(next);
         if (!r.ok) throw new Error('SoundCloud a répondu ' + r.status);
         const j = await r.json();
@@ -117,7 +117,7 @@ export async function extractor(win, appUrl) {
     const missing = tracks.filter((t) => !t.title).map((t) => t.id);
     const byId = new Map();
     for (let i = 0; i < missing.length; i += 50) {
-      say('Le bac : lecture de la playlist… ' + Math.min(i + 50, missing.length) + ' / ' + missing.length);
+      say('Simple playlist : lecture de la playlist… ' + Math.min(i + 50, missing.length) + ' / ' + missing.length);
       const part = await get('tracks', { ids: missing.slice(i, i + 50).join(',') });
       part.forEach((t) => byId.set(t.id, t));
     }
@@ -154,7 +154,7 @@ export async function extractor(win, appUrl) {
       .replace(/=+$/, '');
     if (b64.length > 1900000) return fail('trop de titres pour un seul envoi. Utilise une playlist plus petite.');
     const url = appUrl + '#import=' + b64;
-    say('Le bac : ' + out.length + (out.length > 1 ? ' titres envoyés.' : ' titre envoyé.'), 3500);
+    say('Simple playlist : ' + out.length + (out.length > 1 ? ' titres envoyés.' : ' titre envoyé.'), 3500);
     if (!win.open(url, 'lebac')) win.location.href = url;
   } catch (e) {
     fail('échec de la lecture (' + ((e && e.message) || e) + ').');
@@ -193,7 +193,7 @@ export async function pusher(win) {
       }, ms);
     }
   };
-  const fail = (text) => say('Le bac : ' + text, 9000);
+  const fail = (text) => say('Simple playlist : ' + text, 9000);
   const MAX = 500; // limite de titres par playlist SoundCloud
 
   try {
@@ -209,7 +209,7 @@ export async function pusher(win) {
       text = '';
     }
     if (!/^\s*LEBAC1:/.test(text || '')) {
-      text = win.prompt("Le bac : colle ici les titres copiés depuis l'app (Ctrl+V), puis valide.") || '';
+      text = win.prompt("Simple playlist : colle ici les titres copiés depuis l'app (Ctrl+V), puis valide.") || '';
     }
     const m = /^\s*LEBAC1:([\s\S]*)$/.exec(text);
     if (!m) return fail("rien à envoyer. Dans l'app, clique d'abord sur « Copier pour SoundCloud ».");
@@ -232,11 +232,11 @@ export async function pusher(win) {
     }
     const total = jobs.reduce((n, j) => n + j.items.length, 0);
     const ask =
-      `Le bac va créer ${jobs.length} playlist${jobs.length > 1 ? 's' : ''} PRIVÉE${jobs.length > 1 ? 'S' : ''} sur ton compte SoundCloud (${total} titres) :\n` +
+      `Simple playlist va créer ${jobs.length} playlist${jobs.length > 1 ? 's' : ''} PRIVÉE${jobs.length > 1 ? 'S' : ''} sur ton compte SoundCloud (${total} titres) :\n` +
       jobs.slice(0, 12).map((j) => `• ${j.name} (${j.items.length})`).join('\n') +
       (jobs.length > 12 ? `\n• … et ${jobs.length - 12} autres` : '') +
       '\n\nContinuer ?';
-    if (!win.confirm(ask)) return say('Le bac : annulé, rien n\'a été créé.', 3500);
+    if (!win.confirm(ask)) return say('Simple playlist : annulé, rien n\'a été créé.', 3500);
 
     // 2. identifiants de la session
     let clientId = '';
@@ -283,7 +283,7 @@ export async function pusher(win) {
           ids.push(it);
           continue;
         }
-        say(`Le bac : ${j.name} : lecture des liens… ${ids.length} / ${j.items.length}`);
+        say(`Simple playlist : ${j.name} : lecture des liens… ${ids.length} / ${j.items.length}`);
         try {
           const t = await call('GET', 'resolve', undefined, { url: it });
           if (t && t.kind === 'track' && t.id) ids.push(t.id);
@@ -301,7 +301,7 @@ export async function pusher(win) {
         report.push(`• ${j.name} : aucun titre reconnu, non créée`);
         continue;
       }
-      say(`Le bac : création de « ${j.name} » (${++done} / ${jobs.length})…`);
+      say(`Simple playlist : création de « ${j.name} » (${++done} / ${jobs.length})…`);
       try {
       let pl;
       try {
@@ -332,7 +332,7 @@ export async function pusher(win) {
         report.push(`• ${j.name} : échec (${(e && e.message) || e})`);
       }
     }
-    say('Le bac : terminé. Les playlists sont privées, dans « Bibliothèque > Playlists ».\n' + report.join('\n'), 20000);
+    say('Simple playlist : terminé. Les playlists sont privées, dans « Bibliothèque > Playlists ».\n' + report.join('\n'), 20000);
   } catch (e) {
     fail('échec (' + ((e && e.message) || e) + ').');
   }

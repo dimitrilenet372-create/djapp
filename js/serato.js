@@ -193,4 +193,4 @@ export function whereToGet(t) {
   ];
 }
 
-export const crateName = (name) => (name || 'Le bac').replace(/[\\/:*?"<>|%]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Le bac';
+export const crateName = (name) => (name || 'Simple playlist').replace(/[\\/:*?"<>|%]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Simple playlist';
